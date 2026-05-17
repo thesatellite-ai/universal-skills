@@ -1,34 +1,27 @@
 # universal-skills
 
-A growing library of agent skills for Claude Code. Every skill is namespaced
-with the `satl-` prefix (e.g. `satl-research-closer`) so the collection scales
-to thousands without name collisions.
+A growing library of agent skills. Every skill is namespaced with the `satl-`
+prefix (e.g. `satl-research-closer`) so the collection scales to thousands
+without name collisions.
 
 Each skill lives in its own directory containing a `SKILL.md` with YAML
-frontmatter (`name`, `description`) plus instructions.
+frontmatter (`name`, `description`) plus instructions. Works with Claude Code,
+Cursor, Codex, Copilot, Windsurf, Gemini, Cline, and others.
 
 ## Install
 
-Use the bundled installer:
+Via [skills.sh](https://www.skills.sh/) (the open-source `skills` CLI):
 
 ```bash
-git clone https://github.com/thesatellite-ai/universal-skills.git
-cd universal-skills
+# install the whole collection
+npx skills add thesatellite-ai/universal-skills
 
-./skill.sh                      # list available skills
-./skill.sh satl-research-closer # install one (symlink into ~/.claude/skills)
-./skill.sh all                  # install every skill
-./skill.sh satl-research-closer --copy   # copy instead of symlink
-DEST=/path/to/.claude/skills ./skill.sh all   # custom skills dir
+# or browse first
+npx skills
 ```
 
-- **Symlink (default):** the installed skill stays live — `git pull` updates it.
-- **`--copy`:** detaches a pinned copy (offline / version-locked use).
-- **`DEST=`:** install into a project-local `.claude/skills` instead of the
-  user-global `~/.claude/skills`.
-
-After install, restart Claude Code (or reload skills) and invoke the skill by
-its `name` from the frontmatter.
+Then restart your agent (or reload skills) and invoke a skill by its
+frontmatter `name`.
 
 ## Skills
 
