@@ -53,6 +53,9 @@ closure.
 | `satl-persist-context` | Before a session ends, persist context: update CLAUDE.md, memory, changelog; show diffs for confirmation. |
 | `satl-save-verbatim` | Save the previous assistant message to a file byte-for-byte — no edits, no wrapping. |
 | `satl-ai-context` | Generate a `CLAUDE.md` for a codebase so a fresh agent works without verbal explanation (incl. a what's-NOT-implemented section). |
+| `satl-features-registry` | In repos with a feature registry, patch the registry in the same turn you build/change a feature. |
+| `satl-session-os` | Run session/decision/incident logging in the background — start, corrections, decisions, mistakes, end. |
+| `satl-filemark-docs` | Author internal docs (plans/ADRs/specs/.ai) with filemark component grammar via the `/filemark` skill. |
 
 ## Conventions
 
