@@ -1,0 +1,57 @@
+version: '3'
+
+vars:
+  SKILLS_DIR:
+    sh: echo "${SKILLS_DIR:-$HOME/.claude/skills}"
+  REPO: thesatellite-ai/universal-skills
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  list:
+    desc: List every skill in this repo (dirs containing SKILL.md)
+    cmds:
+      - 'find . -maxdepth 2 -name SKILL.md -print | sed "s|/SKILL.md||;s|^\./||" | sort'
+
+  install:
+    desc: Symlink every satl-* skill into {{.SKILLS_DIR}} (local edits reflect live)
+    cmds:
+      - mkdir -p "{{.SKILLS_DIR}}"
+      - |
+        for d in "$PWD"/satl-*/ ; do
+          [ -f "$d/SKILL.md" ] || continue
+          name=$(basename "$d")
+          ln -sfn "${d%/}" "{{.SKILLS_DIR}}/$name"
+          echo "linked $name -> {{.SKILLS_DIR}}/$name"
+        done
+
+  install-copy:
+    desc: Copy every satl-* skill into {{.SKILLS_DIR}} (snapshot, no symlink)
+    cmds:
+      - mkdir -p "{{.SKILLS_DIR}}"
+      - |
+        for d in "$PWD"/satl-*/ ; do
+          [ -f "$d/SKILL.md" ] || continue
+          name=$(basename "$d")
+          rm -rf "{{.SKILLS_DIR}}/$name"
+          cp -R "${d%/}" "{{.SKILLS_DIR}}/$name"
+          echo "copied $name -> {{.SKILLS_DIR}}/$name"
+        done
+
+  install-remote:
+    desc: Install the whole collection from GitHub via the skills CLI
+    cmds:
+      - npx skills add {{.REPO}}
+
+  uninstall:
+    desc: Remove every satl-* skill from {{.SKILLS_DIR}}
+    cmds:
+      - |
+        for d in "$PWD"/satl-*/ ; do
+          name=$(basename "$d")
+          rm -rf "{{.SKILLS_DIR}}/$name"
+          echo "removed {{.SKILLS_DIR}}/$name"
+        done

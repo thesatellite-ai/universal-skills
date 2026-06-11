@@ -56,6 +56,7 @@ closure.
 | `satl-features-registry` | In repos with a feature registry, patch the registry in the same turn you build/change a feature. |
 | `satl-session-os` | Run session/decision/incident logging in the background — start, corrections, decisions, mistakes, end. |
 | `satl-filemark-docs` | Author internal docs (plans/ADRs/specs/.ai) with filemark component grammar via the `/filemark` skill. |
+| `satl-context-handoff` | Produce a single self-contained handoff/runbook doc so a fresh agent can resume, reverse, or repeat a multi-step task with zero knowledge loss. |
 
 ## Conventions
 
