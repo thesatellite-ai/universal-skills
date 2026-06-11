@@ -57,6 +57,7 @@ closure.
 | `satl-session-os` | Run session/decision/incident logging in the background — start, corrections, decisions, mistakes, end. |
 | `satl-filemark-docs` | Author internal docs (plans/ADRs/specs/.ai) with filemark component grammar via the `/filemark` skill. |
 | `satl-context-handoff` | Produce a single self-contained handoff/runbook doc so a fresh agent can resume, reverse, or repeat a multi-step task with zero knowledge loss. |
+| `satl-frontend-pitch` | Build a premium interactive "plan & roadmap" pitch deck as a real React app (TanStack Start + Tailwind + motion). Ships with full example sources. |
 
 ## Conventions
 
