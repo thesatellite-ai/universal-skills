@@ -59,6 +59,8 @@ closure.
 | `satl-context-handoff` | Produce a single self-contained handoff/runbook doc so a fresh agent can resume, reverse, or repeat a multi-step task with zero knowledge loss. |
 | `satl-frontend-pitch` | Build a premium interactive "plan & roadmap" pitch deck as a real React app (TanStack Start + Tailwind + motion). Ships with full example sources. |
 | `satl-homepage-positioning` | Diagnose + rewrite a product homepage / landing page for conversion using the Fletch PMM method (distilled from ~18 before/after teardowns) — diagnosis rubric, hero copy options, section-by-section spec, before→after annotations. |
+| `satl-replay-checklist` | Distill a session's recurring tasks, gotchas, and verification commands into a reusable project-type playbook a future session can replay — kills re-learning on sister projects. |
+| `satl-code-standards` | The standing engineering bar for every code change — four universal, stack-agnostic pillars: full type safety, zero hardcoded strings, context-dense comments, modular/importable structure. Points to project stack skills for concrete libraries. |
 
 ## Conventions
 
