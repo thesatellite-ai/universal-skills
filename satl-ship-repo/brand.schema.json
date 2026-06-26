@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://thesatellite-ai/schemas/brand.json",
+  "title": "satl repo manifest (brand.json)",
+  "description": "Single source of truth for every satl-ship-repo skill. Lives at the target repo root as brand.json. Every satl-* launch skill reads this so name / tagline / color / fonts / license are decided ONCE, not re-asked per step.",
+  "type": "object",
+  "required": ["name", "tagline", "description", "repo"],
+  "properties": {
+    "name": { "type": "string", "description": "Display name, lowercase if that's the brand (e.g. 'lore', 'agentop')." },
+    "tagline": { "type": "string", "description": "One short line. The hero. e.g. 'Give your AI coding agent a memory.'" },
+    "description": { "type": "string", "description": "1-3 sentence what-it-is, keyword-rich. Reused in README intro, GitHub About, package metadata." },
+    "repo": { "type": "string", "description": "owner/name on GitHub, e.g. 'thesatellite-ai/lore'." },
+    "homepage": { "type": "string", "description": "Public URL or '' if none." },
+    "language": { "type": "string", "enum": ["go", "rust", "typescript", "python", "node", "other"], "description": "Primary language — drives badges, gitignore, release tooling." },
+    "kind": { "type": "string", "enum": ["cli", "tui", "library", "web-app", "extension", "service"], "description": "Shape of the project — drives demo media + distribution choices." },
+    "license": { "type": "string", "default": "Apache-2.0", "description": "SPDX id. Default Apache-2.0." },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "github": { "type": "string" }
+      }
+    },
+    "brand": {
+      "type": "object",
+      "description": "Visual identity inputs for satl-brand-kit.",
+      "properties": {
+        "concept": { "type": "string", "description": "The glyph idea, e.g. 'strata+orbit', 'terminal-meters'." },
+        "color": { "type": "string", "description": "Brand color family name, e.g. 'emerald'." },
+        "tile": { "type": "array", "items": { "type": "string" }, "description": "[gradientStart, gradientEnd] hex for the icon tile." },
+        "fg": { "type": "string", "description": "Glyph foreground hex on the color tile." },
+        "accent": { "type": "string", "description": "Accent/spark hex." },
+        "radius": { "type": "number", "default": 112, "description": "Tile corner radius on a 512 master." }
+      }
+    },
+    "fonts": {
+      "type": "object",
+      "properties": {
+        "display": { "type": "string", "default": "Space Grotesk" },
+        "sans": { "type": "string", "default": "Inter" },
+        "mono": { "type": "string", "default": "JetBrains Mono" }
+      }
+    },
+    "topics": { "type": "array", "items": { "type": "string" }, "description": "GitHub topics for satl-repo-meta (lowercase, hyphenated, <=20)." },
+    "positioning": {
+      "type": "object",
+      "description": "Inputs for the README pitch (satl-readme-pro / satl-frontend-pitch).",
+      "properties": {
+        "category": { "type": "string", "description": "Category anchor, e.g. 'AI agent memory'." },
+        "audience": { "type": "string", "description": "ONE primary audience." },
+        "wedge": { "type": "string", "description": "The single sharpest use case." },
+        "alternatives": { "type": "array", "items": { "type": "string" }, "description": "Named alternatives for the comparison table." },
+        "differentiators": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "install": {
+      "type": "object",
+      "description": "Install one-liners for README + repo-meta, by method.",
+      "properties": {
+        "brew": { "type": "string" },
+        "script": { "type": "string" },
+        "go": { "type": "string" },
+        "npm": { "type": "string" },
+        "cargo": { "type": "string" }
+      }
+    },
+    "khanakia": {
+      "type": "object",
+      "description": "Inputs for satl-ship-to-khanakia (the /apps card).",
+      "properties": {
+        "addToApps": { "type": "boolean", "default": true },
+        "badges": { "type": "array", "items": { "type": "string", "enum": ["new", "popular", "free", "beta", "open-source"] } },
+        "techStack": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
