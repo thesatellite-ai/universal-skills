@@ -1,0 +1,25 @@
+{
+  "name": "universal-skills",
+  "tagline": "An open-source library of portable agent skills.",
+  "description": "A growing, open-source collection of agent skills — self-contained SKILL.md modules that teach AI coding agents new, dependable capabilities. Research closing, prompt engineering, context handoff, README/SEO, brand kits, repo launch, and more. Works with Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini, and Cline.",
+  "repo": "thesatellite-ai/universal-skills",
+  "homepage": "https://www.skills.sh/",
+  "language": "other",
+  "kind": "library",
+  "license": "Apache-2.0",
+  "author": { "name": "khanakia", "github": "khanakia" },
+  "brand": {
+    "concept": "module-grid",
+    "color": "blue",
+    "tile": ["#3B82F6", "#1D4ED8"],
+    "fg": "#FFFFFF",
+    "accent": "#FBBF24",
+    "radius": 112
+  },
+  "fonts": { "display": "Space Grotesk", "sans": "Inter", "mono": "JetBrains Mono" },
+  "topics": ["ai", "ai-agents", "claude", "claude-code", "cursor", "skills", "prompt-engineering", "llm", "developer-tools", "agent-skills"],
+  "khanakia": {
+    "addToApps": true,
+    "badges": ["open-source", "free", "new"]
+  }
+}

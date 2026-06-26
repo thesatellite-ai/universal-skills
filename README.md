@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="brand/png/icon-512.png" alt="universal-skills logo — a 2×2 grid of skill modules" width="60" height="60">
+</p>
+
 # universal-skills
 
 **An open-source library of portable agent skills for AI coding assistants.**
