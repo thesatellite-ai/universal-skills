@@ -71,33 +71,33 @@ Then restart your agent (or reload skills) and invoke a skill by its frontmatter
 
 Each skill links to its directory, which contains a `SKILL.md` plus a `README.md` explaining why it exists and what problem it solves.
 
-| Skill&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | What it does |
+| Skill | What it does |
 |---|---|
-| [`satl-research-closer`](satl-research-closer/) | Turn scattered research / AI-agent dumps / planning docs into one IBIS + ACH decision graph and force closure. (Featured above.) |
-| [`satl-prompt-builder`](satl-prompt-builder/) | Prompt-engineering expert mode — build / refine / critique / diff prompts. Returns copy-paste-ready prompts with rationale, failure modes, variants. |
-| [`satl-persist-context`](satl-persist-context/) | Before a session ends, persist context: update CLAUDE.md, memory, changelog; show diffs for confirmation. |
-| [`satl-save-verbatim`](satl-save-verbatim/) | Save the previous assistant message to a file byte-for-byte — no edits, no wrapping. |
-| [`satl-ai-context`](satl-ai-context/) | Generate a `CLAUDE.md` for a codebase so a fresh agent works without verbal explanation (incl. a what's-NOT-implemented section). |
-| [`satl-features-registry`](satl-features-registry/) | In repos with a feature registry, patch the registry in the same turn you build/change a feature. |
-| [`satl-session-os`](satl-session-os/) | Run session/decision/incident logging in the background — start, corrections, decisions, mistakes, end. |
-| [`satl-filemark-docs`](satl-filemark-docs/) | Author internal docs (plans/ADRs/specs/.ai) with filemark component grammar via the `/filemark` skill. |
-| [`satl-context-handoff`](satl-context-handoff/) | Produce a single self-contained handoff/runbook doc so a fresh agent can resume, reverse, or repeat a multi-step task with zero knowledge loss. |
-| [`satl-frontend-pitch`](satl-frontend-pitch/) | Build a premium interactive "plan & roadmap" pitch deck as a real React app (TanStack Start + Tailwind + motion). Ships with full example sources. |
-| [`satl-homepage-positioning`](satl-homepage-positioning/) | Diagnose + rewrite a product homepage / landing page for conversion using the Fletch PMM method (distilled from ~18 before/after teardowns) — diagnosis rubric, hero copy options, section-by-section spec, before→after annotations. |
-| [`satl-replay-checklist`](satl-replay-checklist/) | Distill a session's recurring tasks, gotchas, and verification commands into a reusable project-type playbook a future session can replay — kills re-learning on sister projects. |
-| [`satl-code-standards`](satl-code-standards/) | The standing engineering bar for every code change — four universal, stack-agnostic pillars: full type safety, zero hardcoded strings, context-dense comments, modular/importable structure. Points to project stack skills for concrete libraries. |
+| [satl&#8209;research&#8209;closer](satl-research-closer/) | Turn scattered research / AI-agent dumps / planning docs into one IBIS + ACH decision graph and force closure. (Featured above.) |
+| [satl&#8209;prompt&#8209;builder](satl-prompt-builder/) | Prompt-engineering expert mode — build / refine / critique / diff prompts. Returns copy-paste-ready prompts with rationale, failure modes, variants. |
+| [satl&#8209;persist&#8209;context](satl-persist-context/) | Before a session ends, persist context: update CLAUDE.md, memory, changelog; show diffs for confirmation. |
+| [satl&#8209;save&#8209;verbatim](satl-save-verbatim/) | Save the previous assistant message to a file byte-for-byte — no edits, no wrapping. |
+| [satl&#8209;ai&#8209;context](satl-ai-context/) | Generate a `CLAUDE.md` for a codebase so a fresh agent works without verbal explanation (incl. a what's-NOT-implemented section). |
+| [satl&#8209;features&#8209;registry](satl-features-registry/) | In repos with a feature registry, patch the registry in the same turn you build/change a feature. |
+| [satl&#8209;session&#8209;os](satl-session-os/) | Run session/decision/incident logging in the background — start, corrections, decisions, mistakes, end. |
+| [satl&#8209;filemark&#8209;docs](satl-filemark-docs/) | Author internal docs (plans/ADRs/specs/.ai) with filemark component grammar via the `/filemark` skill. |
+| [satl&#8209;context&#8209;handoff](satl-context-handoff/) | Produce a single self-contained handoff/runbook doc so a fresh agent can resume, reverse, or repeat a multi-step task with zero knowledge loss. |
+| [satl&#8209;frontend&#8209;pitch](satl-frontend-pitch/) | Build a premium interactive "plan & roadmap" pitch deck as a real React app (TanStack Start + Tailwind + motion). Ships with full example sources. |
+| [satl&#8209;homepage&#8209;positioning](satl-homepage-positioning/) | Diagnose + rewrite a product homepage / landing page for conversion using the Fletch PMM method (distilled from ~18 before/after teardowns) — diagnosis rubric, hero copy options, section-by-section spec, before→after annotations. |
+| [satl&#8209;replay&#8209;checklist](satl-replay-checklist/) | Distill a session's recurring tasks, gotchas, and verification commands into a reusable project-type playbook a future session can replay — kills re-learning on sister projects. |
+| [satl&#8209;code&#8209;standards](satl-code-standards/) | The standing engineering bar for every code change — four universal, stack-agnostic pillars: full type safety, zero hardcoded strings, context-dense comments, modular/importable structure. Points to project stack skills for concrete libraries. |
 
 ### Repo launch family
 
 A set of skills that take a bare repo to a consistent, open-source-ready state, all reading one per-repo `brand.json` manifest. Run them together via [`satl-ship-repo`](satl-ship-repo/), or invoke any one directly. Each ships its own `README.md` explaining its purpose.
 
-| Skill&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | What it does |
+| Skill | What it does |
 |---|---|
-| [`satl-ship-repo`](satl-ship-repo/) | **Orchestrator.** Reads `brand.json` and runs the launch skills below in order (brand → readme → oss files → repo metadata → khanakia card). Use for the full pass; `init` writes the manifest, `status` audits what's done. |
-| [`satl-brand-kit`](satl-brand-kit/) | Generates the full visual identity from the manifest: glyph concepts + palettes, every icon variant (color/dark/light/mono), favicon set, wordmark, lockups, light+dark OG covers, and design tokens — from one generator script. |
-| [`satl-readme-pro`](satl-readme-pro/) | Turns a README into an SEO-ready landing page: logo header + badges, keyword-rich intro, "Why this?" pitch + comparison table, FAQ tuned for AI/Google, keyword footer — preserving every existing section. Delegates deep positioning to [`satl-homepage-positioning`](satl-homepage-positioning/). |
-| [`satl-oss-scaffold`](satl-oss-scaffold/) | Scaffolds the OSS hygiene files filled from the manifest: LICENSE (Apache-2.0 default), CONTRIBUTING, CHANGELOG, CODE_OF_CONDUCT, SECURITY, `.github/` templates, FUNDING, `.editorconfig`, `.gitattributes`, `llms.txt`. |
-| [`satl-repo-meta`](satl-repo-meta/) | Sets GitHub discoverability metadata via `gh`: About description, topics, homepage; and preps the 1280×640 social-preview image. |
+| [satl&#8209;ship&#8209;repo](satl-ship-repo/) | **Orchestrator.** Reads `brand.json` and runs the launch skills below in order (brand → readme → oss files → repo metadata → khanakia card). Use for the full pass; `init` writes the manifest, `status` audits what's done. |
+| [satl&#8209;brand&#8209;kit](satl-brand-kit/) | Generates the full visual identity from the manifest: glyph concepts + palettes, every icon variant (color/dark/light/mono), favicon set, wordmark, lockups, light+dark OG covers, and design tokens — from one generator script. |
+| [satl&#8209;readme&#8209;pro](satl-readme-pro/) | Turns a README into an SEO-ready landing page: logo header + badges, keyword-rich intro, "Why this?" pitch + comparison table, FAQ tuned for AI/Google, keyword footer — preserving every existing section. Delegates deep positioning to [satl&#8209;homepage&#8209;positioning](satl-homepage-positioning/). |
+| [satl&#8209;oss&#8209;scaffold](satl-oss-scaffold/) | Scaffolds the OSS hygiene files filled from the manifest: LICENSE (Apache-2.0 default), CONTRIBUTING, CHANGELOG, CODE_OF_CONDUCT, SECURITY, `.github/` templates, FUNDING, `.editorconfig`, `.gitattributes`, `llms.txt`. |
+| [satl&#8209;repo&#8209;meta](satl-repo-meta/) | Sets GitHub discoverability metadata via `gh`: About description, topics, homepage; and preps the 1280×640 social-preview image. |
 
 > A sixth, project-specific step — adding the project to **khanakia.com/apps** — is not part of this universal collection. It lives in the `khanakia_com_tanstack` repo at `.claude/skills/satl-ship-to-khanakia/`, and `satl-ship-repo` runs it only when working in that repo.
 
