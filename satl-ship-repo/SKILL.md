@@ -31,7 +31,7 @@ The one command that takes a bare repo to a consistent, professional, open-sourc
 ## The model
 
 ```
-brand.json   ← the single source of truth (decided ONCE, at the repo root)
+brand/brand.json   ← the single source of truth (decided ONCE; lives in brand/, not the repo root)
    │
    ├─ satl-brand-kit         → visual identity + assets + tokens
    ├─ satl-readme-pro        → README: logo header, SEO, pitch, FAQ

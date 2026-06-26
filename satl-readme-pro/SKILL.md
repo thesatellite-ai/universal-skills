@@ -38,7 +38,10 @@ Before writing, **enumerate the existing README's top-level sections**. Your out
 
 1. **Logo header** — centered, via HTML that GitHub allows:
    ```html
-   <p align="center"><img src="brand/png/<name>-icon-512.png" alt="<name> logo — <glyph description>" width="120" height="120"></p>
+   <p align="center"><img src="brand/png/<name>-icon-512.png" alt="<name> logo — <glyph description>" width="72" height="72"></p>
+   ```
+   Keep the header icon small — **~60-80px** (`width="72"` is a good default). 120px reads as oversized in a README. Set `height` = `width`.
+   ```html
    <h1 align="center"><name></h1>
    <p align="center"><strong><tagline></strong></p>
    <p align="center"><one keyword-rich sentence></p>

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://thesatellite-ai/schemas/brand.json",
   "title": "satl repo manifest (brand.json)",
-  "description": "Single source of truth for every satl-ship-repo skill. Lives at the target repo root as brand.json. Every satl-* launch skill reads this so name / tagline / color / fonts / license are decided ONCE, not re-asked per step.",
+  "description": "Single source of truth for every satl-ship-repo skill. Lives at brand/brand.json in the target repo (co-located with the generated assets, NOT at the repo root). Every satl-* launch skill reads this so name / tagline / color / fonts / license are decided ONCE, not re-asked per step.",
   "type": "object",
   "required": ["name", "tagline", "description", "repo"],
   "properties": {
