@@ -90,6 +90,7 @@ Each skill links to its directory, which contains a `SKILL.md` plus a `README.md
 | [satl&#8209;homepage&#8209;positioning](satl-homepage-positioning/) | Diagnose + rewrite a product homepage / landing page for conversion using the Fletch PMM method (distilled from ~18 before/after teardowns) — diagnosis rubric, hero copy options, section-by-section spec, before→after annotations. |
 | [satl&#8209;replay&#8209;checklist](satl-replay-checklist/) | Distill a session's recurring tasks, gotchas, and verification commands into a reusable project-type playbook a future session can replay — kills re-learning on sister projects. |
 | [satl&#8209;code&#8209;standards](satl-code-standards/) | The standing engineering bar for every code change — four universal, stack-agnostic pillars: full type safety, zero hardcoded strings, context-dense comments, modular/importable structure. Points to project stack skills for concrete libraries. |
+| [satl&#8209;favicon&#8209;audit](satl-favicon-audit/) | Diagnose + fix why a site shows the wrong/default/scaffold favicon in Google Search or the tab — broken web-manifest icon paths, missing 48px-multiple icon, scaffold leftovers, or a stale Google cache. Triages live-vs-cached first. |
 
 ### Repo launch family
 
