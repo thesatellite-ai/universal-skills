@@ -39,6 +39,23 @@ Read it BEFORE writing or editing code.
 
 ---
 
+## 0 · STEP 0 — Load the stack skills (BLOCKING — do this FIRST, before §1)
+
+This skill is only the universal **floor**. The concrete, stack-specific rules — which data-fetching client, which ORM, which UI primitives, the exact "no inline GraphQL / use the generated SDK" kind of rule — live in **separate stack skills**. Skipping them is the #1 failure of this skill: you ship code that passes all four pillars yet violates a flat project rule, and nobody notices because the skip is silent.
+
+**Before writing or editing ANY code**, for every language/area the task touches, load its stack skill:
+
+1. **Detect** the languages/areas in the task (frontend TS/React, backend Go, CLI, infra, …).
+2. **Find + load** the matching stack skill, in this order — stop at the first that hits:
+   - the invocable-skills list — look for `ubgo-frontend` (TS/React), `ubgo-golang-v2` (Go), or a project-named stack skill, and invoke it;
+   - a repo-pinned pointer (`CLAUDE.md`, `.aicoder/` / `.lore/` / `.codeskill/`) naming a stack rule doc — read it;
+   - on disk: `~/.claude/skills/ubgo-frontend/`, `~/.claude/skills/ubgo-golang-v2/` (Read the `SKILL.md` + `frontend.md` / `golang.md` if it is not invocable as a Skill).
+3. **Declare the result** — emit exactly one line before touching code: `Stack skills loaded: <names>` — or, if a language genuinely has none, `No stack skill found for <lang>`.
+
+Do NOT write code until that line exists. The forced declaration is the whole point: a silent skip is the failure this step prevents — if you cannot emit the line, you have not done the step. When a stack skill and this floor disagree on a stack specific, the **stack skill wins**; the four pillars (§1) still apply on top.
+
+---
+
 ## 1 · The four pillars — apply to EVERY change
 
 These are non-negotiable regardless of language. They are the rules the user repeats most.
@@ -94,6 +111,7 @@ Example shape — note it carries *why* and *invariant*, not just *what*:
 
 ### 2.1 Pre-flight (before writing code)
 
+- [ ] **STACK SKILLS LOADED (BLOCKING — §0)** — for every language/area I touch, its stack skill is loaded and I emitted the `Stack skills loaded: <names>` (or `No stack skill found for <lang>`) line. No code before that line. This is the item most often skipped and the one that catches stack-specific rules the four pillars cannot.
 - [ ] **Shared resources** — grep every reader/writer of any field/column/table/env var/public API I will touch; list them `file:line`; confirm compatibility.
 - [ ] **Constants** — every closed-set value I introduce has a named constant + a canonical iteration list. No bare literals at use sites.
 - [ ] **Types** — every shape is expressed; no untyped escape hatch planned; opaque IDs branded.
@@ -112,24 +130,25 @@ Example shape — note it carries *why* and *invariant*, not just *what*:
 
 ---
 
-## 3 · Stack-specific rules live elsewhere
+## 3 · Stack-specific rules live elsewhere (loaded in §0)
 
-This skill is the universal floor. The concrete stack rules — which UI primitives, which data-fetching client, which ORM, which logger, naming conventions, design tokens — are project-specific and change per repo. Do NOT hardcode any of them here.
+This skill is the universal floor. The concrete stack rules — which UI primitives, which data-fetching client, which ORM, which logger, naming conventions, design tokens — are project-specific and change per repo. Do NOT hardcode any of them here; they live in the stack skills that §0 makes you load BEFORE writing code. This section is just the map of which skill covers what:
 
-Before substantive work, also load the project's own stack rules if they exist:
-
-- **Frontend** (TypeScript / React / styling): the project's frontend stack skill, plus any per-repo overlay (e.g. a `frontend-project.md`).
-- **Backend** (Go / services): the project's backend stack skill, plus any per-repo overlay (e.g. a `golang-project.md`).
+- **Frontend** (TypeScript / React / styling): **`ubgo-frontend`** — the canonical stack (TanStack Start + React + Base UI + Tailwind v4 + gqlkit) with hard rules like "no inline GraphQL — every query/mutation goes through the generated `src/generated/sdk` (gqlkit); raw `fetch()`/template-literal GraphQL is banned", `authFetch` on authed clients, the SSR-`localStorage` trap, semantic tokens. Plus any per-repo overlay (e.g. a `frontend-project.md`).
+- **Backend** (Go / services): **`ubgo-golang-v2`** (or `ubgo-golang`) — the 3 commandments, reference tables over `field.Enum`, DB-as-dumb-storage, logging via `applog`/`ubgo/logger`, errors via `ubgo/errx`, multi-tenant safety, the anti-pattern catalog. Plus any per-repo overlay (e.g. a `golang-project.md`).
 - If the repo has a knowledge store (`.aicoder/` / `.lore/` / `.codeskill/` or similar) or a `CLAUDE.md`, its rules are authoritative on conflict.
 
-When a project stack skill and this skill disagree on a stack specific, the project skill wins for that specific; the four pillars in §1 still apply on top.
+Names are the current defaults, not a closed set — a repo may pin its own stack skill; §0 step 2 finds it. When a stack skill and this floor disagree on a stack specific, the stack skill wins for that specific; the four pillars in §1 still apply on top.
+
+A concrete miss this prevents (why §0 exists): shipping hand-written GraphQL query strings + a hand-rolled response type on a repo whose `ubgo-frontend` rule mandates the generated gqlkit SDK. It passes the four pillars (typed, no magic strings, commented) yet flatly violates the stack rule — invisible unless the stack skill was loaded first.
 
 ---
 
 ## Rules
 
+- **FIRST, always: run §0** — load the stack skill(s) for the languages you touch and emit the `Stack skills loaded: …` line BEFORE any code. This is the gate; skipping it silently is the #1 way this skill fails.
 - Apply the four pillars (§1) to every code change, in every language.
-- Load the project's stack skill + overlay (§3) for concrete library/convention rules; this skill never names a library.
+- The stack skill (loaded in §0) carries the concrete library/convention rules; this floor never names a library and defers to the stack skill on any stack specific.
 - When a pillar is about to be violated, stop and ask — don't "just this once" it.
 - Never auto-commit; the user reviews and decides each commit.
 - Plain markdown, single physical line per paragraph (no hard-wrap). No reference to Claude / AI / Anthropic in any output.
