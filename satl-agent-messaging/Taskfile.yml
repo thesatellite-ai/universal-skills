@@ -1,0 +1,37 @@
+version: '3'
+
+# Reusable commands for the agentmsg CLI + skill. Run `task --list`.
+
+tasks:
+  test:
+    desc: Run the full behavioral test suite (isolated temp tree)
+    cmds:
+      - bash "{{.TASKFILE_DIR}}/test.sh"
+
+  bench:
+    desc: Throughput benchmark. Override count with `task bench -- 1000`
+    cmds:
+      - bash "{{.TASKFILE_DIR}}/bench.sh" {{.CLI_ARGS}}
+
+  hook-install:
+    desc: 'Install auto-read hook in a project. Usage: task hook-install -- <project-dir> <room> <id>'
+    cmds:
+      - bash "{{.TASKFILE_DIR}}/install-hook.sh" {{.CLI_ARGS}}
+
+  hook-remove:
+    desc: 'Remove the auto-read hook from a project. Usage: task hook-remove -- <project-dir>'
+    cmds:
+      - bash "{{.TASKFILE_DIR}}/install-hook.sh" --remove {{.CLI_ARGS}}
+
+  demo:
+    desc: Quick end-to-end demo in an isolated tree
+    cmds:
+      - |
+        export AGENT_MSG_HOME="$(mktemp -d)/agent-messages"
+        A="{{.TASKFILE_DIR}}/agentmsg"
+        "$A" init lobby
+        "$A" join lobby bob
+        "$A" join lobby alice
+        "$A" send lobby bob alice "standup at 3?"
+        "$A" read lobby alice
+        rm -rf "$(dirname "$AGENT_MSG_HOME")"

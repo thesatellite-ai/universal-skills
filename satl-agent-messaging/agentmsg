@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+#
+# agentmsg — file-based mailbox for agent-to-agent messaging.
+#
+# One message = one file. Sending publishes a file into the recipient's queue;
+# reading prints every queued file for an identity and DELETES it (read-once,
+# like tearing a note off a spike). Peek reads without deleting.
+#
+# Layout (root defaults to ~/agent-messages, override with AGENT_MSG_HOME):
+#
+#   <root>/
+#     <room>/
+#       ROOM.md                                     # human-readable room label
+#       agents/<id>.agent                           # identity registry (1 file/agent)
+#       messages/<to>__<ts>__<uniq>__<from>.md      # one file per message
+#
+# Filename fields are separated by "__". Ordering the timestamp BEFORE the
+# sender means a lexical sort of `read`'s glob (`messages/<myid>__*`) yields
+# strict chronological order ACROSS senders — not grouped by sender. The
+# recipient is the leading field so routing is a pure glob; no body is parsed.
+#
+# Concurrency: send writes to a hidden temp file then `mv`s it into place —
+# `mv` within one directory is atomic, so a concurrent reader never sees a
+# half-written message. Filenames carry microseconds + pid + double-random and
+# are collision-checked, so simultaneous sends never clobber each other.
+#
+set -euo pipefail
+
+VERSION="0.1.0"
+ROOT="${AGENT_MSG_HOME:-$HOME/agent-messages}"
+
+die() { echo "agentmsg: $*" >&2; exit 1; }
+
+# Reject ids/rooms that would escape the tree or break the "__" filename encoding.
+validate_name() {
+  local kind="$1" name="$2"
+  [[ -n "$name" ]] || die "$kind is empty"
+  [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "invalid $kind '$name' (allowed: letters, digits, - and _, not starting with -)"
+  [[ "$name" != *__* ]] || die "$kind '$name' may not contain '__' (reserved as field separator)"
+}
+
+room_dir()  { echo "$ROOT/$1"; }
+msg_dir()   { echo "$ROOT/$1/messages"; }
+agents_dir(){ echo "$ROOT/$1/agents"; }
+
+require_room() { [[ -d "$(room_dir "$1")" ]] || die "room '$1' does not exist — run: agentmsg init $1"; }
+
+# Chronological, sortable key: local YYYYMMDD-HHMMSS + microseconds. Microsecond
+# resolution (via perl, present on macOS + most Linux) keeps two sends in the
+# same wall-clock second in true send order. Fallback: seconds + pseudo-random
+# 6 digits (coarser tie-break, still unique enough with the uniq suffix below).
+_msgkey() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -MPOSIX=strftime -MTime::HiRes=gettimeofday -e '
+      my ($s,$us) = gettimeofday;
+      printf "%s-%06d", strftime("%Y%m%d-%H%M%S", localtime($s)), $us;'
+  else
+    printf '%s-%06d' "$(date +%Y%m%d-%H%M%S)" "$(( (RANDOM * 32768 + RANDOM) % 1000000 ))"
+  fi
+}
+
+cmd_init() {
+  local room="${1:-}"; validate_name room "$room"
+  local rd; rd="$(room_dir "$room")"
+  mkdir -p "$(msg_dir "$room")" "$(agents_dir "$room")"
+  if [[ ! -f "$rd/ROOM.md" ]]; then
+    cat > "$rd/ROOM.md" <<EOF
+# Room: $room
+
+File-based agent messaging room. Registered agent identities live in \`agents/\`.
+Send a note with: agentmsg send $room <from> <to> "message"
+Read your notes with: agentmsg read $room <yourid>   (read-once — deletes after)
+EOF
+  fi
+  echo "room '$room' ready at $rd"
+}
+
+cmd_join() {
+  local room="${1:-}" id="${2:-}"
+  validate_name room "$room"; validate_name id "$id"
+  require_room "$room"
+  local f; f="$(agents_dir "$room")/$id.agent"
+  if [[ -f "$f" ]]; then
+    echo "identity '$id' already registered in '$room'"
+  else
+    printf 'id: %s\njoined: %s\n' "$id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$f"
+    echo "identity '$id' joined room '$room'"
+  fi
+}
+
+cmd_agents() {
+  local room="${1:-}"; validate_name room "$room"; require_room "$room"
+  local ad; ad="$(agents_dir "$room")"
+  local any=0
+  shopt -s nullglob
+  for f in "$ad"/*.agent; do any=1; basename "$f" .agent; done
+  shopt -u nullglob
+  [[ "$any" == 1 ]] || echo "(no identities registered — agentmsg join $room <id>)"
+}
+
+cmd_send() {
+  local room="${1:-}" from="${2:-}" to="${3:-}"; shift 3 2>/dev/null || true
+  local body="${*:-}"
+  validate_name room "$room"; validate_name from "$from"; validate_name to "$to"
+  require_room "$room"
+  [[ -n "$body" ]] || die "empty message body"
+  [[ -f "$(agents_dir "$room")/$to.agent" ]] || echo "agentmsg: note — '$to' is not a registered identity in '$room' (delivering anyway)" >&2
+
+  local md; md="$(msg_dir "$room")"
+  local key; key="$(_msgkey)"
+
+  # Pick a collision-free final name (pid + double-random on top of microseconds).
+  local f attempt=0
+  while :; do
+    f="$md/${to}__${key}__$$-${RANDOM}${RANDOM}__${from}.md"
+    [[ -e "$f" ]] || break
+    attempt=$((attempt + 1)); (( attempt > 50 )) && die "could not allocate unique message filename"
+  done
+
+  # Write to a hidden temp then atomically publish with mv (same dir).
+  local tmp; tmp="$md/.tmp.$$.${RANDOM}"
+  {
+    printf -- '---\nto: %s\nfrom: %s\nroom: %s\nsent: %s\n---\n\n' \
+      "$to" "$from" "$room" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '%s\n' "$body"
+  } > "$tmp"
+  mv "$tmp" "$f"
+  echo "sent -> $to  ($(basename "$f"))"
+}
+
+# shared reader; $1=room $2=id $3=delete(1/0)
+_read() {
+  local room="$1" id="$2" del="$3"
+  validate_name room "$room"; validate_name id "$id"; require_room "$room"
+  shopt -s nullglob
+  local files=( "$(msg_dir "$room")/${id}__"*.md )
+  shopt -u nullglob
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "no messages for '$id' in '$room'"
+    return 0
+  fi
+  # oldest first (filename sorts chronologically: <id>__<ts>__<uniq>__<from>)
+  IFS=$'\n' files=( $(printf '%s\n' "${files[@]}" | sort) ); unset IFS
+  local n=${#files[@]}
+  local mode=""; [[ "$del" == 1 ]] && mode=" (read-once, deleting)"
+  echo "=== $n message(s) for '$id' in '$room'$mode ==="
+  local shown=0
+  for f in "${files[@]}"; do
+    # Another reader of the same id may have consumed it between glob and now.
+    [[ -f "$f" ]] || continue
+    echo
+    echo "----- $(basename "$f") -----"
+    cat "$f"
+    [[ "$del" == 1 ]] && rm -f "$f"
+    shown=$((shown + 1))
+  done
+  # If every candidate vanished under us, say so rather than printing a bare header.
+  [[ "$shown" -gt 0 ]] || echo "(all $n message(s) were consumed by another reader)"
+}
+
+cmd_read() { _read "${1:-}" "${2:-}" 1; }
+cmd_peek() { _read "${1:-}" "${2:-}" 0; }
+
+# drain — hook-friendly reader. Prints an injectable block of any waiting
+# messages and consumes them (read-once), but is SILENT when there is nothing
+# (or when the room/id is invalid or missing). Designed for a UserPromptSubmit
+# hook: no output => no context noise on turns with an empty mailbox.
+cmd_drain() {
+  local room="${1:-}" id="${2:-}"
+  # Fail silent for hook safety — never error a user's turn.
+  [[ -n "$room" && -n "$id" ]] || return 0
+  [[ "$room" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ && "$room" != *__* ]] || return 0
+  [[ "$id"   =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ && "$id"   != *__* ]] || return 0
+  [[ -d "$(room_dir "$room")" ]] || return 0
+  shopt -s nullglob
+  local files=( "$(msg_dir "$room")/${id}__"*.md )
+  shopt -u nullglob
+  [[ ${#files[@]} -gt 0 ]] || return 0
+  IFS=$'\n' files=( $(printf '%s\n' "${files[@]}" | sort) ); unset IFS
+  echo "[agentmsg] ${#files[@]} new message(s) delivered to '$id' in room '$room' — addressed to you; act on them this turn:"
+  local f
+  for f in "${files[@]}"; do
+    [[ -f "$f" ]] || continue
+    echo
+    cat "$f"
+    rm -f "$f"
+  done
+}
+
+cmd_count() {
+  local room="${1:-}" id="${2:-}"
+  validate_name room "$room"; validate_name id "$id"; require_room "$room"
+  shopt -s nullglob
+  local files=( "$(msg_dir "$room")/${id}__"*.md )
+  shopt -u nullglob
+  echo "${#files[@]}"
+}
+
+cmd_rooms() {
+  [[ -d "$ROOT" ]] || { echo "(no rooms — root $ROOT does not exist)"; return 0; }
+  shopt -s nullglob
+  local any=0
+  for d in "$ROOT"/*/; do [[ -d "${d}messages" ]] || continue; any=1; basename "$d"; done
+  shopt -u nullglob
+  [[ "$any" == 1 ]] || echo "(no rooms yet — agentmsg init <room>)"
+}
+
+usage() {
+  cat <<EOF
+agentmsg v$VERSION — file-based agent-to-agent messaging   (root: $ROOT)
+
+  agentmsg init   <room>                     create a room
+  agentmsg join   <room> <id>                register an identity in a room
+  agentmsg agents <room>                     list registered identities
+  agentmsg rooms                             list rooms
+  agentmsg send   <room> <from> <to> <msg>   send a message
+  agentmsg read   <room> <id>                read + DELETE messages for <id>
+  agentmsg peek   <room> <id>                read WITHOUT deleting
+  agentmsg drain  <room> <id>                like read, but SILENT when empty (for hooks)
+  agentmsg count  <room> <id>                number of queued messages for <id>
+
+Override storage root with AGENT_MSG_HOME=/path
+EOF
+}
+
+main() {
+  local sub="${1:-}"; shift 2>/dev/null || true
+  case "$sub" in
+    init)   cmd_init   "$@" ;;
+    join)   cmd_join   "$@" ;;
+    agents) cmd_agents "$@" ;;
+    rooms)  cmd_rooms  "$@" ;;
+    send)   cmd_send   "$@" ;;
+    read)   cmd_read   "$@" ;;
+    peek)   cmd_peek   "$@" ;;
+    drain)  cmd_drain  "$@" ;;
+    count)  cmd_count  "$@" ;;
+    -v|--version|version) echo "agentmsg $VERSION" ;;
+    ""|-h|--help|help) usage ;;
+    *) die "unknown command '$sub' (try: agentmsg help)" ;;
+  esac
+}
+
+main "$@"
