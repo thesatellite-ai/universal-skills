@@ -1,0 +1,37 @@
+version: '3'
+
+# Reusable commands for the project-memory helper + skill. Run `task --list`.
+
+tasks:
+  test:
+    desc: Run the full behavioral test suite (isolated temp tree)
+    cmds:
+      - bash "{{.TASKFILE_DIR}}/test.sh"
+
+  init:
+    desc: 'Create a memory store. Usage: task init -- <project-dir>'
+    cmds:
+      - MEMORY_DIR="{{.CLI_ARGS}}/.ai/memory" bash "{{.TASKFILE_DIR}}/project-memory" init
+
+  index:
+    desc: 'Regenerate INDEX.md + FILES.md. Usage: task index -- <project-dir>'
+    cmds:
+      - MEMORY_DIR="{{.CLI_ARGS}}/.ai/memory" bash "{{.TASKFILE_DIR}}/project-memory" index
+
+  check:
+    desc: 'Fail if the indexes have drifted (CI). Usage: task check -- <project-dir>'
+    cmds:
+      - MEMORY_DIR="{{.CLI_ARGS}}/.ai/memory" bash "{{.TASKFILE_DIR}}/project-memory" check
+
+  demo:
+    desc: End-to-end demo of a store in an isolated tree
+    cmds:
+      - |
+        export MEMORY_DIR="$(mktemp -d)/.ai/memory"
+        M="{{.TASKFILE_DIR}}/project-memory"
+        "$M" init
+        "$M" new gotcha "Vite HMR drops symlinked packages"
+        "$M" new decision "Dropped Redis for the job queue"
+        "$M" index
+        echo "--- INDEX.md"; cat "$MEMORY_DIR/INDEX.md"
+        rm -rf "$(dirname "$(dirname "$MEMORY_DIR")")"
