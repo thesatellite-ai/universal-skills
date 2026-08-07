@@ -13,6 +13,26 @@ tasks:
     cmds:
       - bash "{{.TASKFILE_DIR}}/bench.sh" {{.CLI_ARGS}}
 
+  watch:
+    desc: 'Blocking mailbox watcher (drains + exits on mail). Usage: task watch -- <room> <id> [--interval N]'
+    cmds:
+      - '"{{.TASKFILE_DIR}}/agentmsg" watch {{.CLI_ARGS}}'
+
+  unwatch:
+    desc: 'Stop a mailbox watcher. Usage: task unwatch -- <room> <id>'
+    cmds:
+      - '"{{.TASKFILE_DIR}}/agentmsg" unwatch {{.CLI_ARGS}}'
+
+  watchers:
+    desc: 'List live watchers. Usage: task watchers [-- <room>]'
+    cmds:
+      - '"{{.TASKFILE_DIR}}/agentmsg" watchers {{.CLI_ARGS}}'
+
+  history:
+    desc: 'Replay archived messages. Usage: task history -- <room> [<id>] [--all]'
+    cmds:
+      - '"{{.TASKFILE_DIR}}/agentmsg" history {{.CLI_ARGS}}'
+
   hook-install:
     desc: 'Install auto-read hook in a project. Usage: task hook-install -- <project-dir> <room> <id>'
     cmds:

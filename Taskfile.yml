@@ -11,6 +11,23 @@ tasks:
     cmds:
       - task --list
 
+  test:
+    desc: Run every skill's test suite (the same ones CI runs)
+    cmds:
+      - bash satl-project-memory/test.sh
+      - bash satl-agent-messaging/test.sh
+
+  lint:
+    desc: Check skill structure — frontmatter, name/dir match, README table, tests
+    cmds:
+      - bash lint-skills.sh
+
+  check:
+    desc: Everything CI runs — lint plus every test suite
+    cmds:
+      - task: lint
+      - task: test
+
   list:
     desc: List every skill in this repo (dirs containing SKILL.md)
     cmds:

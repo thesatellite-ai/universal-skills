@@ -15,16 +15,16 @@ Every example calls the `agentmsg` CLI. Point a shell variable at it so the comm
 
 ```bash
 AGENTMSG="$HOME/.claude/skills/satl-agent-messaging/agentmsg"   # if symlinked into ~/.claude/skills
-# or the canonical source location:
-# AGENTMSG="/Volumes/D/www/projects/khanakia/skills-ai/universal-skills/satl-agent-messaging/agentmsg"
 ```
+
+If that path doesn't exist, point it at the `agentmsg` file inside your checkout of the `satl-agent-messaging` skill directory, or at `command -v agentmsg` if you put it on your `PATH`.
 
 ## The tutorials
 
-1. [Quickstart: two agents pass notes](01-quickstart-two-agents.md) — the whole loop in one terminal, five commands.
-2. [Adopting an identity in a Claude session](02-adopting-an-identity.md) — the real workflow: two Claude Code windows, "you are bob" / "you are alice".
-3. [A three-agent room](03-three-agent-room.md) — fan a message out to several identities and coordinate a small group.
-4. [Command reference & troubleshooting](04-reference-and-troubleshooting.md) — every flag, every gotcha, how to inspect the raw files.
+1. [Quickstart: two agents pass notes](01-quickstart-two-agents.md) — the whole loop in one terminal: rooms, roles, send/read, archiving, and blocking on `watch`.
+2. [Adopting an identity in a Claude session](02-adopting-an-identity.md) — the real workflow: two Claude Code windows, "you are bob, the CTO" / "you are alice", with automatic background delivery.
+3. [A three-agent room](03-three-agent-room.md) — broadcast with `--all` and `--role`, coordinate a small group, and prune it afterwards.
+4. [Command reference & troubleshooting](04-reference-and-troubleshooting.md) — every command, every flag, every gotcha, how to inspect the raw files.
 
 ## Try it right now (no reading required)
 

@@ -8,41 +8,46 @@ AGENTMSG="$HOME/.claude/skills/satl-agent-messaging/agentmsg"
 
 ## Step 1 — one room, three identities
 
+Give each identity a **role** while you're here — with three or more people in a room, roles are what let you address the group by function instead of memorising handles:
+
 ```bash
 "$AGENTMSG" init project
-"$AGENTMSG" join project bob
-"$AGENTMSG" join project alice
-"$AGENTMSG" join project charlie
+"$AGENTMSG" join project bob     Lead
+"$AGENTMSG" join project alice   Frontend
+"$AGENTMSG" join project charlie Frontend
 "$AGENTMSG" agents project
-# → alice
-#   bob
-#   charlie
+# → alice — Frontend
+#   bob — Lead
+#   charlie — Frontend
 ```
 
 In three Claude sessions, tell each one "you are bob / alice / charlie in room **project**" (see [playbook 2](02-adopting-an-identity.md)).
 
 ## Step 2 — fan-out (broadcast to everyone)
 
-There's no broadcast command — a message goes to exactly one recipient. To reach the whole group, `send` once per recipient. That's deliberate: each agent gets its own copy in its own queue, so one agent reading doesn't consume everyone else's.
-
-Bob announces a kickoff to both teammates:
+`--all` sends to every identity in the room except the sender:
 
 ```bash
-"$AGENTMSG" send project bob alice   "kickoff: I'm taking the API, you take the UI"
-"$AGENTMSG" send project bob charlie "kickoff: I'm taking the API, you take tests"
+"$AGENTMSG" send project bob --all "kickoff at 10 — grab your assignments"
+# → broadcast (all) -> 2 recipient(s): alice charlie
 ```
 
-If you're driving Claude, just say: *"tell both alice and charlie that kickoff is starting and assign them UI and tests."* Claude issues the two `send` calls.
-
-A tiny shell helper if you do this a lot:
+`--role` narrows it to everyone with a given role. Matching is case-insensitive, because you'll say "the frontend team" and the role was typed by hand:
 
 ```bash
-broadcast() {           # broadcast <room> <from> <msg> <to1> <to2> ...
-  local room="$1" from="$2" msg="$3"; shift 3
-  for to in "$@"; do "$AGENTMSG" send "$room" "$from" "$to" "$msg"; done
-}
-broadcast project bob "standup in 5" alice charlie
+"$AGENTMSG" send project bob --role frontend "please rebase before you start"
+# → broadcast (role=frontend) -> 2 recipient(s): alice charlie
 ```
+
+Under the hood a fan-out writes **one independent file per recipient** — there is no shared broadcast object. Each agent gets its own copy in its own queue, so one agent reading doesn't consume anyone else's, and read-once, ordering, and atomic publish all keep working per mailbox exactly as they do for a direct send. Recipients can tell the difference: broadcast messages carry a `broadcast: all` or `broadcast: role=frontend` line in their frontmatter, which is the difference between "reply expected" and "FYI".
+
+Directed sends still work the same way when you want one person:
+
+```bash
+"$AGENTMSG" send project bob alice "you take the UI"
+```
+
+If you're driving Claude, just say *"tell everyone kickoff is at 10"* or *"tell the frontend team to rebase"* — it picks the right form.
 
 ## Step 3 — each agent drains its own queue
 
@@ -80,8 +85,28 @@ A common three-agent shape: **bob is the lead**, alice and charlie are workers.
 
 Because bob's queue merges notes from every sender in true send-time order, he gets a clean chronological feed of everyone's replies — not one sender's batch followed by another's.
 
+## Step 5 — keeping the room tidy
+
+Rooms only ever grow unless you prune them. When an agent is finished:
+
+```bash
+"$AGENTMSG" leave project charlie
+```
+
+That stops charlie's watcher and removes the identity, so `agents` stops listing a handle nobody is behind and `--all` stops mailing a ghost. It refuses while mail is still queued for charlie — read it first, or pass `--force` to accept that those notes are destroyed.
+
+When the whole effort is done:
+
+```bash
+"$AGENTMSG" rmroom project --force
+```
+
+Without `--force` it refuses and tells you exactly what it would destroy (identities, queued messages, archived messages). There is no undo, so the guard is deliberate.
+
+If you want the coordination history to survive the cleanup, have each agent read with `--archive` (or set `AGENT_MSG_ARCHIVE=1`) so notes land in `project/archive/` instead of being deleted, and replay them with `history project`. Note that `rmroom` deletes the archive too — copy it out first if you want to keep it.
+
 ## When three is too many for this tool
 
-`agentmsg` is built for a *handful* of identities passing notes, not a broadcast bus. If you find yourself with dozens of agents, per-message fan-out, or needing delivery receipts and retries, you've outgrown a file-mailbox — reach for a real queue. For 2–3 coordinating agents it's exactly enough.
+`agentmsg` is built for a *handful* of identities passing notes, not a broadcast bus. `--all` fans out one file per recipient, which is linear: fine for a room of five, wasteful for a room of five hundred. If you find yourself with dozens of agents, or needing delivery receipts and retries, you've outgrown a file-mailbox — reach for a real queue. For 2–3 coordinating agents it's exactly enough.
 
 Next: [command reference & troubleshooting](04-reference-and-troubleshooting.md).

@@ -3,31 +3,102 @@
 # agentmsg — file-based mailbox for agent-to-agent messaging.
 #
 # One message = one file. Sending publishes a file into the recipient's queue;
-# reading prints every queued file for an identity and DELETES it (read-once,
-# like tearing a note off a spike). Peek reads without deleting.
+# reading prints every queued file for an identity and REMOVES it (read-once,
+# like tearing a note off a spike) — deleting it, or moving it to archive/ with
+# --archive. Peek reads without removing.
 #
 # Layout (root defaults to ~/agent-messages, override with AGENT_MSG_HOME):
 #
 #   <root>/
 #     <room>/
 #       ROOM.md                                     # human-readable room label
-#       agents/<id>.agent                           # identity registry (1 file/agent)
-#       messages/<to>__<ts>__<uniq>__<from>.md      # one file per message
+#       agents/<id>.agent                           # identity registry: id, joined, optional role
+#       watchers/<id>.pid                           # live `watch` registry, pruned when stale
+#       messages/<to>__<ts>__<uniq>__<from>.md      # one file per queued message
+#       archive/<to>__<ts>__<uniq>__<from>.md       # retired messages, only if --archive was used
 #
 # Filename fields are separated by "__". Ordering the timestamp BEFORE the
 # sender means a lexical sort of `read`'s glob (`messages/<myid>__*`) yields
 # strict chronological order ACROSS senders — not grouped by sender. The
 # recipient is the leading field so routing is a pure glob; no body is parsed.
+# A broadcast (--all / --role) is NOT a shared object: it writes one independent
+# file per recipient, so every guarantee below holds per mailbox unchanged.
 #
-# Concurrency: send writes to a hidden temp file then `mv`s it into place —
-# `mv` within one directory is atomic, so a concurrent reader never sees a
-# half-written message. Filenames carry microseconds + pid + double-random and
-# are collision-checked, so simultaneous sends never clobber each other.
+# Concurrency, in three places:
+#   - send writes to a hidden temp file then `mv`s it into place. `mv` within one
+#     directory is atomic, so a concurrent reader never sees a half-written
+#     message. Filenames carry microseconds + pid + double-random and are
+#     collision-checked, so simultaneous sends never clobber each other.
+#   - read/drain tolerate a file vanishing between glob and open (another reader
+#     of the same mailbox got it first) by skipping it rather than failing.
+#   - watch claims its pidfile with `set -o noclobber`, so two watchers starting
+#     at the same instant cannot both win and split one mailbox between them.
 #
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.3.0"
 ROOT="${AGENT_MSG_HOME:-$HOME/agent-messages}"
+
+# Archiving. `read` is destructive by design (read-once), which means a note you
+# wanted to keep is unrecoverable. Passing --archive moves the file into
+# <room>/archive/ instead of deleting it, preserving the read-once *semantics*
+# (it leaves the inbox, so it is never delivered twice) while keeping the text.
+# Set AGENT_MSG_ARCHIVE=1 to make that the default for a whole session.
+ARCHIVE_DEFAULT="${AGENT_MSG_ARCHIVE:-0}"
+
+# How many archived messages `history` prints when no --limit is given. Archives
+# grow without bound, so an unbounded default would dump a whole conversation
+# into an agent's context on a casual "what did we talk about".
+HISTORY_DEFAULT_LIMIT=20
+
+# Retry bounds. Both loops below are "try again after a collision", and both
+# need a ceiling so a pathological case fails loudly instead of spinning.
+
+# Attempts to find an unused message filename. The name already carries
+# microseconds + pid + two randoms, so a single collision is already
+# astronomically unlikely; 50 means something is structurally wrong, not unlucky.
+SEND_FILENAME_ATTEMPTS=50
+
+# Attempts to claim the watcher pidfile. Each retry follows either a pruned
+# stale file or a watcher we just stopped, so more than a handful means another
+# process is racing us for the same mailbox and losing to it is the right answer.
+WATCH_CLAIM_ATTEMPTS=5
+
+# --- watch tunables -----------------------------------------------------------
+# `watch` blocks until mail arrives, so its exit is the delivery signal. These
+# are named because every one of them is a contract with the caller (an agent
+# harness that relaunches the watcher after each exit), not an arbitrary number.
+
+# Poll cadence. 60s matches the "check for new messages every minute" contract
+# and costs one directory glob per minute — cheaper than any inotify/fswatch
+# dependency, and identical on macOS and Linux (fswatch is not installed by
+# default on either). Latency is bounded by this value, not by message size.
+WATCH_DEFAULT_INTERVAL=60
+
+# Max lifetime of one watch before it exits with EXIT_WATCH_TIMEOUT. A watcher
+# must eventually exit on its own: if the session that launched it dies, an
+# unbounded loop leaks a process that polls forever. 50 minutes is long enough
+# that a healthy session almost never sees a heartbeat exit, short enough that
+# an orphan reaps within the hour. Pass --timeout 0 to disable (foreground use).
+WATCH_DEFAULT_TIMEOUT=3000
+
+# Lower bound on --interval. Sub-second polling burns CPU for no gain: the
+# mailbox is a human/agent-paced channel, not a hot loop.
+WATCH_MIN_INTERVAL=1
+
+# How long `unwatch` waits for a watcher to exit on SIGTERM before escalating to
+# SIGKILL. A watcher's cleanup is one `rm` of its pidfile, so anything above a
+# couple of seconds means it is wedged and deserves the hard kill.
+WATCH_STOP_GRACE=5
+
+# Poll cadence while waiting out WATCH_STOP_GRACE. Sub-second so `unwatch`
+# returns as soon as the watcher is actually gone, not on a whole-second edge.
+WATCH_STOP_POLL=0.2
+
+# Exit codes. The caller distinguishes these WITHOUT parsing stdout, because
+# stdout on a delivery is the message bodies themselves.
+EXIT_WATCH_MAIL=0      # mail was found; bodies are on stdout (and drained)
+EXIT_WATCH_TIMEOUT=2   # --timeout elapsed with an empty mailbox; relaunch me
 
 die() { echo "agentmsg: $*" >&2; exit 1; }
 
@@ -39,9 +110,53 @@ validate_name() {
   [[ "$name" != *__* ]] || die "$kind '$name' may not contain '__' (reserved as field separator)"
 }
 
-room_dir()  { echo "$ROOT/$1"; }
-msg_dir()   { echo "$ROOT/$1/messages"; }
-agents_dir(){ echo "$ROOT/$1/agents"; }
+# A role is a free-text label attached to an identity ("CTO", "Head of Product",
+# "reviewer") so a human reading a room knows who is who and an agent can address
+# people by function. Unlike an id it NEVER appears in a filename or a path, so
+# it is allowed spaces and punctuation; the only hard rules are single-line (the
+# .agent file is line-oriented, so a newline would corrupt the next field) and a
+# length cap that keeps `agents` output a readable column. Roles are optional —
+# an empty role is valid and simply means "no role recorded".
+AGENT_ROLE_MAX_LEN=64
+
+validate_role() {
+  local role="$1"
+  [[ -n "$role" ]] || return 0
+  [[ "$role" != *$'\n'* ]] || die "role may not contain a newline"
+  [[ "$role" =~ ^[[:print:]]+$ ]] || die "role must be printable single-line text"
+  (( ${#role} <= AGENT_ROLE_MAX_LEN )) || die "role is too long (${#role} chars, max $AGENT_ROLE_MAX_LEN)"
+}
+
+# Role recorded for <room>/<id>, or empty. Empty is also what pre-role .agent
+# files (written before this field existed) yield — reading is backward
+# compatible by construction, no migration needed.
+_agent_role() {
+  local f
+  f="$(agents_dir "$1")/$2.agent"
+  [[ -f "$f" ]] || return 0
+  sed -n 's/^role: //p' "$f" | head -n1
+}
+
+room_dir()    { echo "$ROOT/$1"; }
+msg_dir()     { echo "$ROOT/$1/messages"; }
+agents_dir()  { echo "$ROOT/$1/agents"; }
+watchers_dir(){ echo "$ROOT/$1/watchers"; }
+archive_dir() { echo "$ROOT/$1/archive"; }
+
+# Retire one delivered message: archive it, or delete it. Both paths remove the
+# file from the inbox, which is what makes delivery exactly-once either way.
+_retire_msg() {
+  local room="$1" f="$2" archive="$3"
+  if [[ "$archive" == 1 ]]; then
+    local ad; ad="$(archive_dir "$room")"
+    mkdir -p "$ad"
+    # Same-filesystem rename: atomic, and the archived name keeps the original
+    # <to>__<ts>__<uniq>__<from> encoding so `history` can still parse it.
+    mv "$f" "$ad/$(basename "$f")"
+  else
+    rm -f "$f"
+  fi
+}
 
 require_room() { [[ -d "$(room_dir "$1")" ]] || die "room '$1' does not exist — run: agentmsg init $1"; }
 
@@ -62,7 +177,7 @@ _msgkey() {
 cmd_init() {
   local room="${1:-}"; validate_name room "$room"
   local rd; rd="$(room_dir "$room")"
-  mkdir -p "$(msg_dir "$room")" "$(agents_dir "$room")"
+  mkdir -p "$(msg_dir "$room")" "$(agents_dir "$room")" "$(watchers_dir "$room")"
   if [[ ! -f "$rd/ROOM.md" ]]; then
     cat > "$rd/ROOM.md" <<EOF
 # Room: $room
@@ -76,14 +191,43 @@ EOF
 }
 
 cmd_join() {
-  local room="${1:-}" id="${2:-}"
-  validate_name room "$room"; validate_name id "$id"
+  local room="${1:-}" id="${2:-}"; shift 2 2>/dev/null || true
+  # Everything after the id is the role, so it can be written unquoted:
+  #   agentmsg join lobby bob Head of Product
+  local role="${*:-}"
+  validate_name room "$room"; validate_name id "$id"; validate_role "$role"
   require_room "$room"
+
   local f; f="$(agents_dir "$room")/$id.agent"
+  local joined
   if [[ -f "$f" ]]; then
-    echo "identity '$id' already registered in '$room'"
+    # Re-joining is how a role gets set or changed later; preserve the original
+    # join time so the registry keeps saying when this identity first appeared.
+    joined="$(sed -n 's/^joined: //p' "$f" | head -n1)"
+    [[ -n "$joined" ]] || joined="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    if [[ -z "$role" ]]; then
+      local existing; existing="$(_agent_role "$room" "$id")"
+      if [[ -n "$existing" ]]; then
+        echo "identity '$id' already registered in '$room' (role: $existing)"
+      else
+        echo "identity '$id' already registered in '$room'"
+      fi
+      return 0
+    fi
   else
-    printf 'id: %s\njoined: %s\n' "$id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$f"
+    joined="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  fi
+
+  # `test && cmd` as the last statement of this group would abort under `set -e`
+  # when role is empty (the group's exit status becomes 1) — hence the `if`.
+  {
+    printf 'id: %s\njoined: %s\n' "$id" "$joined"
+    if [[ -n "$role" ]]; then printf 'role: %s\n' "$role"; fi
+  } > "$f"
+
+  if [[ -n "$role" ]]; then
+    echo "identity '$id' joined room '$room' as $role"
+  else
     echo "identity '$id' joined room '$room'"
   fi
 }
@@ -91,20 +235,105 @@ cmd_join() {
 cmd_agents() {
   local room="${1:-}"; validate_name room "$room"; require_room "$room"
   local ad; ad="$(agents_dir "$room")"
-  local any=0
+  local any=0 id role
   shopt -s nullglob
-  for f in "$ad"/*.agent; do any=1; basename "$f" .agent; done
+  for f in "$ad"/*.agent; do
+    any=1
+    id="$(basename "$f" .agent)"
+    role="$(_agent_role "$room" "$id")"
+    if [[ -n "$role" ]]; then echo "$id — $role"; else echo "$id"; fi
+  done
   shopt -u nullglob
   [[ "$any" == 1 ]] || echo "(no identities registered — agentmsg join $room <id>)"
 }
 
+# Every registered identity in a room except <except>, one per line.
+_room_members() {
+  local room="$1" except="${2:-}" id
+  shopt -s nullglob
+  local f
+  for f in "$(agents_dir "$room")"/*.agent; do
+    id="$(basename "$f" .agent)"
+    if [[ "$id" != "$except" ]]; then echo "$id"; fi
+  done
+  shopt -u nullglob
+}
+
+# Members of <room> whose role matches <role>, case-insensitively, excluding
+# <except>. Case-insensitive because a user says "tell the CTO" and "tell the
+# cto" interchangeably, and the role was typed by hand at join time.
+_room_members_with_role() {
+  local room="$1" role="$2" except="${3:-}" id r
+  local want; want="$(printf '%s' "$role" | tr '[:upper:]' '[:lower:]')"
+  shopt -s nullglob
+  local f
+  for f in "$(agents_dir "$room")"/*.agent; do
+    id="$(basename "$f" .agent)"
+    if [[ "$id" == "$except" ]]; then continue; fi
+    r="$(printf '%s' "$(_agent_role "$room" "$id")" | tr '[:upper:]' '[:lower:]')"
+    if [[ -n "$r" && "$r" == "$want" ]]; then echo "$id"; fi
+  done
+  shopt -u nullglob
+}
+
+# send — one recipient, or a fan-out.
+#
+#   agentmsg send <room> <from> <to>          <msg>   one identity
+#   agentmsg send <room> <from> --all         <msg>   everyone else in the room
+#   agentmsg send <room> <from> --role <role> <msg>   everyone with that role
+#
+# The flags sit in the <to> slot, which is unambiguous because validate_name
+# forbids an id from starting with `-`. A fan-out writes one independent file
+# per recipient — there is no shared "broadcast message" object — so read-once,
+# ordering, and atomic publish all keep working unchanged per mailbox.
 cmd_send() {
   local room="${1:-}" from="${2:-}" to="${3:-}"; shift 3 2>/dev/null || true
-  local body="${*:-}"
-  validate_name room "$room"; validate_name from "$from"; validate_name to "$to"
+  validate_name room "$room"; validate_name from "$from"
   require_room "$room"
+
+  local -a recipients=()
+  local fanout=""
+  case "$to" in
+    --all)
+      [[ -n "${*:-}" ]] || die "empty message body"
+      fanout="all"
+      IFS=$'\n' read -r -d '' -a recipients < <(_room_members "$room" "$from" && printf '\0') || true
+      [[ ${#recipients[@]} -gt 0 ]] || die "no other identities registered in '$room' — nothing to broadcast to"
+      ;;
+    --role)
+      local role="${1:-}"; shift 2>/dev/null || true
+      [[ -n "$role" ]] || die "--role needs a role name"
+      fanout="role=$role"
+      IFS=$'\n' read -r -d '' -a recipients < <(_room_members_with_role "$room" "$role" "$from" && printf '\0') || true
+      [[ ${#recipients[@]} -gt 0 ]] || die "no identity in '$room' has role '$role' (see: agentmsg agents $room)"
+      ;;
+    -*)
+      die "unknown send flag '$to' (try: agentmsg help)"
+      ;;
+    *)
+      validate_name to "$to"
+      recipients=( "$to" )
+      if [[ ! -f "$(agents_dir "$room")/$to.agent" ]]; then
+        echo "agentmsg: note — '$to' is not a registered identity in '$room' (delivering anyway)" >&2
+      fi
+      ;;
+  esac
+
+  local body="${*:-}"
   [[ -n "$body" ]] || die "empty message body"
-  [[ -f "$(agents_dir "$room")/$to.agent" ]] || echo "agentmsg: note — '$to' is not a registered identity in '$room' (delivering anyway)" >&2
+
+  local rc
+  for rc in "${recipients[@]}"; do
+    _send_one "$room" "$from" "$rc" "$fanout" "$body"
+  done
+  if [[ -n "$fanout" ]]; then
+    echo "broadcast ($fanout) -> ${#recipients[@]} recipient(s): $(printf '%s ' "${recipients[@]}" | sed 's/ $//')"
+  fi
+}
+
+# Publish exactly one message file. $4 is the fan-out tag ("" for a direct send).
+_send_one() {
+  local room="$1" from="$2" to="$3" fanout="$4" body="$5"
 
   local md; md="$(msg_dir "$room")"
   local key; key="$(_msgkey)"
@@ -114,23 +343,55 @@ cmd_send() {
   while :; do
     f="$md/${to}__${key}__$$-${RANDOM}${RANDOM}__${from}.md"
     [[ -e "$f" ]] || break
-    attempt=$((attempt + 1)); (( attempt > 50 )) && die "could not allocate unique message filename"
+    # `(( … )) && die` here would return 1 on the common path and abort the
+    # script under `set -e`, since it is the loop body's last statement.
+    attempt=$((attempt + 1))
+    if (( attempt > SEND_FILENAME_ATTEMPTS )); then die "could not allocate a unique message filename after $SEND_FILENAME_ATTEMPTS attempts"; fi
   done
+
+  # Stamp the sender's role at SEND time, not read time: the recipient must see
+  # who this was when it was written, even if the sender later changes role or
+  # leaves the room entirely.
+  local from_role; from_role="$(_agent_role "$room" "$from")"
 
   # Write to a hidden temp then atomically publish with mv (same dir).
   local tmp; tmp="$md/.tmp.$$.${RANDOM}"
   {
-    printf -- '---\nto: %s\nfrom: %s\nroom: %s\nsent: %s\n---\n\n' \
-      "$to" "$from" "$room" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf -- '---\nto: %s\nfrom: %s\n' "$to" "$from"
+    if [[ -n "$from_role" ]]; then printf 'from-role: %s\n' "$from_role"; fi
+    # Tells the recipient this was addressed to a group, not to them personally
+    # — the difference between "reply expected" and "FYI".
+    if [[ -n "$fanout" ]]; then printf 'broadcast: %s\n' "$fanout"; fi
+    printf -- 'room: %s\nsent: %s\n---\n\n' "$room" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\n' "$body"
   } > "$tmp"
   mv "$tmp" "$f"
-  echo "sent -> $to  ($(basename "$f"))"
+  # A fan-out prints one summary line instead of N — cmd_send handles that.
+  if [[ -z "$fanout" ]]; then echo "sent -> $to  ($(basename "$f"))"; fi
 }
 
-# shared reader; $1=room $2=id $3=delete(1/0)
+# Split "<room> <id> [--archive]" style args. Sets _AR_ROOM/_AR_ID/_AR_ARCHIVE.
+# Shared by read/peek/drain/count so --archive means the same thing everywhere
+# and a stray flag can never be mistaken for an id (ids may not start with `-`).
+_AR_ROOM=""; _AR_ID=""; _AR_ARCHIVE=0
+_parse_room_id_archive() {
+  _AR_ROOM=""; _AR_ID=""; _AR_ARCHIVE="$ARCHIVE_DEFAULT"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --archive)    _AR_ARCHIVE=1; shift ;;
+      --no-archive) _AR_ARCHIVE=0; shift ;;
+      -*) die "unknown flag '$1' (try: agentmsg help)" ;;
+      *)  if [[ -z "$_AR_ROOM" ]]; then _AR_ROOM="$1"
+          elif [[ -z "$_AR_ID" ]]; then _AR_ID="$1"
+          else die "unexpected argument '$1'"; fi
+          shift ;;
+    esac
+  done
+}
+
+# shared reader; $1=room $2=id $3=delete(1/0) $4=archive(1/0)
 _read() {
-  local room="$1" id="$2" del="$3"
+  local room="$1" id="$2" del="$3" archive="${4:-0}"
   validate_name room "$room"; validate_name id "$id"; require_room "$room"
   shopt -s nullglob
   local files=( "$(msg_dir "$room")/${id}__"*.md )
@@ -142,7 +403,10 @@ _read() {
   # oldest first (filename sorts chronologically: <id>__<ts>__<uniq>__<from>)
   IFS=$'\n' files=( $(printf '%s\n' "${files[@]}" | sort) ); unset IFS
   local n=${#files[@]}
-  local mode=""; [[ "$del" == 1 ]] && mode=" (read-once, deleting)"
+  local mode=""
+  if [[ "$del" == 1 ]]; then
+    if [[ "$archive" == 1 ]]; then mode=" (read-once, archiving)"; else mode=" (read-once, deleting)"; fi
+  fi
   echo "=== $n message(s) for '$id' in '$room'$mode ==="
   local shown=0
   for f in "${files[@]}"; do
@@ -151,22 +415,30 @@ _read() {
     echo
     echo "----- $(basename "$f") -----"
     cat "$f"
-    [[ "$del" == 1 ]] && rm -f "$f"
+    if [[ "$del" == 1 ]]; then _retire_msg "$room" "$f" "$archive"; fi
     shown=$((shown + 1))
   done
   # If every candidate vanished under us, say so rather than printing a bare header.
   [[ "$shown" -gt 0 ]] || echo "(all $n message(s) were consumed by another reader)"
 }
 
-cmd_read() { _read "${1:-}" "${2:-}" 1; }
-cmd_peek() { _read "${1:-}" "${2:-}" 0; }
+cmd_read() { _parse_room_id_archive "$@"; _read "$_AR_ROOM" "$_AR_ID" 1 "$_AR_ARCHIVE"; }
+cmd_peek() { _parse_room_id_archive "$@"; _read "$_AR_ROOM" "$_AR_ID" 0 0; }
 
 # drain — hook-friendly reader. Prints an injectable block of any waiting
 # messages and consumes them (read-once), but is SILENT when there is nothing
 # (or when the room/id is invalid or missing). Designed for a UserPromptSubmit
 # hook: no output => no context noise on turns with an empty mailbox.
 cmd_drain() {
-  local room="${1:-}" id="${2:-}"
+  local room="${1:-}" id="${2:-}" archive="$ARCHIVE_DEFAULT"
+  # Flags are parsed inline rather than via _parse_room_id_archive because that
+  # helper calls die() — a hook must never abort the user's turn over a typo.
+  case "${3:-}" in
+    --archive)    archive=1 ;;
+    --no-archive) archive=0 ;;
+    "") ;;
+    *) return 0 ;;
+  esac
   # Fail silent for hook safety — never error a user's turn.
   [[ -n "$room" && -n "$id" ]] || return 0
   [[ "$room" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ && "$room" != *__* ]] || return 0
@@ -183,17 +455,391 @@ cmd_drain() {
     [[ -f "$f" ]] || continue
     echo
     cat "$f"
-    rm -f "$f"
+    _retire_msg "$room" "$f" "$archive"
+  done
+}
+
+# Number of messages currently queued for <id> in <room>, as a bare integer.
+# Shared by `count` and `watch` so both agree on what "has mail" means.
+_queued_count() {
+  local room="$1" id="$2"
+  shopt -s nullglob
+  local files=( "$(msg_dir "$room")/${id}__"*.md )
+  shopt -u nullglob
+  echo "${#files[@]}"
+}
+
+# ── watcher registry ──────────────────────────────────────────────────────────
+# One pidfile per (room, id) at <room>/watchers/<id>.pid. This is what makes the
+# "exactly one watcher per identity" rule enforceable rather than merely
+# documented, and it is the only way `unwatch` can find a watcher started by a
+# different process (a background shell, a previous session, another terminal).
+
+watcher_pidfile() { echo "$(watchers_dir "$1")/$2.pid"; }
+
+# Full command line of a pid, or empty. Used as a PID-reuse guard: the OS
+# recycles pids, so a stale pidfile could otherwise name a completely unrelated
+# process that `unwatch` would then happily SIGKILL.
+_cmd_of_pid() {
+  ps -o command= -p "$1" 2>/dev/null || ps -o args= -p "$1" 2>/dev/null || true
+}
+
+# Echo the pid of the live watcher for <room>/<id> and return 0, or return 1.
+# Prunes the pidfile whenever it fails a check, so a crashed watcher never
+# blocks the next one from starting.
+_live_watcher_pid() {
+  local room="$1" id="$2" pf pid
+  pf="$(watcher_pidfile "$room" "$id")"
+  [[ -f "$pf" ]] || return 1
+  pid="$(head -n1 "$pf" 2>/dev/null || true)"
+  if [[ ! "$pid" =~ ^[0-9]+$ ]]; then rm -f "$pf"; return 1; fi
+  # Not running at all -> stale file from a crash or a reboot.
+  if ! kill -0 "$pid" 2>/dev/null; then rm -f "$pf"; return 1; fi
+  # Running, but is it OUR process? If the pid was recycled the command line
+  # won't mention agentmsg, and we must not claim (or later kill) it.
+  case "$(_cmd_of_pid "$pid")" in
+    *agentmsg*) echo "$pid"; return 0 ;;
+    *) rm -f "$pf"; return 1 ;;
+  esac
+}
+
+# Stop the watcher for <room>/<id> if one is live. Echoes a human-readable
+# result. Returns 0 whether or not one was running — stopping is idempotent so
+# "stop watching" is always a safe thing for an agent to run.
+_stop_watcher() {
+  local room="$1" id="$2" pid pf waited
+  if ! pid="$(_live_watcher_pid "$room" "$id")"; then
+    echo "no watcher running for '$id' in '$room'"
+    return 0
+  fi
+  pf="$(watcher_pidfile "$room" "$id")"
+  kill -TERM "$pid" 2>/dev/null || true
+
+  # Give it the grace period to run its own cleanup (which removes the pidfile).
+  waited=0
+  while (( waited < WATCH_STOP_GRACE )); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$pf"
+      echo "stopped watcher for '$id' in '$room' (pid $pid)"
+      return 0
+    fi
+    sleep "$WATCH_STOP_POLL"
+    waited=$((waited + 1))
+  done
+
+  kill -KILL "$pid" 2>/dev/null || true
+  rm -f "$pf"
+  echo "force-killed watcher for '$id' in '$room' (pid $pid — did not exit on SIGTERM)"
+}
+
+cmd_unwatch() {
+  local room="${1:-}" id="${2:-}"
+  validate_name room "$room"; validate_name id "$id"; require_room "$room"
+  _stop_watcher "$room" "$id"
+}
+
+# List live watchers, pruning stale pidfiles as it goes. With no room, scans all.
+cmd_watchers() {
+  local rooms=()
+  if [[ -n "${1:-}" ]]; then
+    validate_name room "$1"; require_room "$1"; rooms=( "$1" )
+  else
+    [[ -d "$ROOT" ]] || { echo "(no watchers — root $ROOT does not exist)"; return 0; }
+    shopt -s nullglob
+    local d
+    for d in "$ROOT"/*/; do [[ -d "${d}messages" ]] || continue; rooms+=( "$(basename "$d")" ); done
+    shopt -u nullglob
+  fi
+
+  local any=0 room pf id pid
+  for room in "${rooms[@]:-}"; do
+    [[ -n "$room" ]] || continue
+    shopt -s nullglob
+    for pf in "$(watchers_dir "$room")"/*.pid; do
+      id="$(basename "$pf" .pid)"
+      if pid="$(_live_watcher_pid "$room" "$id")"; then
+        any=1
+        echo "$room  $id  pid=$pid"
+      fi
+    done
+    shopt -u nullglob
+  done
+  [[ "$any" == 1 ]] || echo "(no live watchers — agentmsg watch <room> <id>)"
+}
+
+# State owned by a running `watch`, torn down by _watch_cleanup on ANY exit.
+_WATCH_PIDFILE=""
+_WATCH_SLEEP_PID=""
+
+_watch_cleanup() {
+  # Kill the napping child first, or it survives us as an orphan `sleep`.
+  [[ -n "$_WATCH_SLEEP_PID" ]] && kill "$_WATCH_SLEEP_PID" 2>/dev/null || true
+  [[ -n "$_WATCH_PIDFILE"  ]] && rm -f "$_WATCH_PIDFILE" || true
+}
+
+# Sleep that a signal can cut short. A plain `sleep 60` is NOT interruptible in
+# bash: traps only run once the foreground child finishes, so `unwatch` would
+# wait up to a full interval before the watcher noticed the SIGTERM. Backgrounding
+# the sleep and blocking in `wait` makes the trap fire immediately.
+_watch_sleep() {
+  sleep "$1" &
+  _WATCH_SLEEP_PID=$!
+  wait "$_WATCH_SLEEP_PID" 2>/dev/null || true
+  _WATCH_SLEEP_PID=""
+}
+
+# watch — blocking mailbox watcher, the background-service form of `drain`.
+#
+# WHY THIS EXISTS: nothing outside a Claude Code session can inject a turn into
+# it, so mail has to be pulled. `drain` in a UserPromptSubmit hook pulls only
+# when the human types; `/loop` pulls on a timer and pays tokens on every empty
+# tick. `watch` inverts it: the process blocks (free) and its EXIT is the
+# delivery event. Harnesses that re-invoke the agent when a backgrounded command
+# finishes (Claude Code's run_in_background does) therefore get push semantics —
+# the agent sleeps for free and wakes with the message bodies already on stdout.
+#
+# CONTRACT with the caller — it must relaunch the watcher after every exit:
+#   exit 0 ($EXIT_WATCH_MAIL)    stdout = the drained message bodies. Act, relaunch.
+#   exit 2 ($EXIT_WATCH_TIMEOUT) idle heartbeat, empty mailbox. Just relaunch.
+#   exit 1                        usage/validation error. Do NOT relaunch blindly.
+#
+# INVARIANT — enforced, not just documented: at most one watcher per (room, id).
+# Two watchers race on the same queue; `drain` tolerates it (each file is deleted
+# by whoever gets it first, and a file that vanishes mid-read is skipped), so no
+# message is duplicated or corrupted — but a message reaches only ONE of the two
+# agents. That silent split is worse than an error, so a second `watch` on a live
+# mailbox exits 1 and tells you to `unwatch` or pass --replace.
+cmd_watch() {
+  local room="" id="" interval="$WATCH_DEFAULT_INTERVAL" timeout="$WATCH_DEFAULT_TIMEOUT" drain=1 replace=0
+  local archive="$ARCHIVE_DEFAULT"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --interval) interval="${2:-}"; shift 2 || die "--interval needs a value" ;;
+      --timeout)  timeout="${2:-}";  shift 2 || die "--timeout needs a value" ;;
+      --no-drain) drain=0; shift ;;
+      --replace)  replace=1; shift ;;
+      --archive)    archive=1; shift ;;
+      --no-archive) archive=0; shift ;;
+      -*) die "unknown watch flag '$1' (try: agentmsg help)" ;;
+      *)  if [[ -z "$room" ]]; then room="$1"; elif [[ -z "$id" ]]; then id="$1";
+          else die "unexpected argument '$1'"; fi
+          shift ;;
+    esac
+  done
+
+  validate_name room "$room"; validate_name id "$id"; require_room "$room"
+  [[ "$interval" =~ ^[0-9]+$ ]] || die "--interval must be a non-negative integer (seconds), got '$interval'"
+  [[ "$timeout"  =~ ^[0-9]+$ ]] || die "--timeout must be a non-negative integer (seconds, 0 = never), got '$timeout'"
+  if (( interval < WATCH_MIN_INTERVAL )); then
+    die "--interval must be >= $WATCH_MIN_INTERVAL second(s), got $interval"
+  fi
+
+  # Rooms created before watchers existed have no watchers/ dir.
+  mkdir -p "$(watchers_dir "$room")"
+
+  # Claim the mailbox ATOMICALLY. A plain "is it live? then write the pidfile"
+  # is a TOCTOU race: two sessions starting (or --replace-ing) at the same
+  # instant both see no live watcher and both start, which is exactly the split
+  # mailbox the single-watcher rule exists to prevent. `set -o noclobber` makes
+  # the create fail if the file already exists, so only one racer can win.
+  local pf; pf="$(watcher_pidfile "$room" "$id")"
+  local claimed=0 existing=""
+  local attempt=0
+  while (( claimed == 0 )); do
+    if (set -o noclobber; printf '%s\n' "$$" > "$pf") 2>/dev/null; then
+      claimed=1
+      break
+    fi
+    # Lost the race, or an old pidfile is sitting there. Only one of those is
+    # an error — _live_watcher_pid prunes the file if it is stale.
+    if existing="$(_live_watcher_pid "$room" "$id")"; then
+      if (( replace == 1 )); then
+        _stop_watcher "$room" "$id" >&2
+      else
+        die "a watcher for '$id' in '$room' is already running (pid $existing) — stop it with: agentmsg unwatch $room $id   (or start this one with --replace)"
+      fi
+    fi
+    # The file was stale (pruned) or we just stopped its owner; try to claim
+    # again. Bounded so a pathological loser can never spin forever.
+    attempt=$((attempt + 1))
+    if (( attempt > WATCH_CLAIM_ATTEMPTS )); then die "could not claim the watcher slot for '$id' in '$room' — another process keeps taking it"; fi
+  done
+
+  # From here the pidfile is ours. The EXIT trap is what keeps the registry
+  # honest: however this process ends (mail, timeout, SIGTERM from `unwatch`,
+  # Ctrl-C), the pidfile goes away and the next watcher can start cleanly.
+  _WATCH_PIDFILE="$pf"
+  printf '%s\n%s\n' "$$" "started: $(date -u +%Y-%m-%dT%H:%M:%SZ) room=$room id=$id interval=$interval" > "$_WATCH_PIDFILE"
+  trap '_watch_cleanup' EXIT
+  # Explicit signal traps so the EXIT trap actually runs on a kill; the exit
+  # codes are the conventional 128+signal.
+  trap 'exit 143' TERM
+  trap 'exit 130' INT
+
+  # Announce on stderr, never stdout: stdout is reserved for message bodies so
+  # the caller can pipe/inject it verbatim without stripping a banner.
+  local until_desc="no timeout"
+  if (( timeout > 0 )); then until_desc="timeout ${timeout}s"; fi
+  echo "agentmsg: watching '$id' in '$room' (every ${interval}s, $until_desc, drain=$drain) — pid $$; stop with: agentmsg unwatch $room $id" >&2
+
+  local start=$SECONDS
+  while :; do
+    # Check BEFORE sleeping so an already-full mailbox delivers immediately
+    # rather than after a pointless first interval.
+    if [[ "$(_queued_count "$room" "$id")" != 0 ]]; then
+      if (( drain == 1 )); then
+        if (( archive == 1 )); then cmd_drain "$room" "$id" --archive; else cmd_drain "$room" "$id" --no-archive; fi
+      else
+        cmd_peek "$room" "$id"
+      fi
+      exit "$EXIT_WATCH_MAIL"
+    fi
+
+    if (( timeout > 0 )); then
+      local elapsed=$((SECONDS - start))
+      if (( elapsed >= timeout )); then
+        echo "agentmsg: watch timed out after ${elapsed}s with an empty mailbox for '$id' in '$room' — relaunch to keep watching" >&2
+        exit "$EXIT_WATCH_TIMEOUT"
+      fi
+      # Never oversleep the deadline: the final nap is clamped so the heartbeat
+      # exit lands on time instead of up to one full interval late.
+      local remaining=$((timeout - elapsed))
+      if (( remaining < interval )); then _watch_sleep "$remaining"; else _watch_sleep "$interval"; fi
+    else
+      _watch_sleep "$interval"
+    fi
+  done
+}
+
+# leave — deregister an identity. Rooms otherwise only ever grow, so `agents`
+# fills with handles nobody is using and a fan-out mails ghosts.
+#
+# Refuses while mail is queued, because leaving would silently destroy notes
+# somebody sent in good faith; --force accepts that and discards them.
+cmd_leave() {
+  local room="" id="" force=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      -*) die "unknown leave flag '$1' (try: agentmsg help)" ;;
+      *)  if [[ -z "$room" ]]; then room="$1"; elif [[ -z "$id" ]]; then id="$1";
+          else die "unexpected argument '$1'"; fi
+          shift ;;
+    esac
+  done
+  validate_name room "$room"; validate_name id "$id"; require_room "$room"
+
+  local f; f="$(agents_dir "$room")/$id.agent"
+  [[ -f "$f" ]] || die "identity '$id' is not registered in '$room'"
+
+  local queued; queued="$(_queued_count "$room" "$id")"
+  if [[ "$queued" != 0 && "$force" != 1 ]]; then
+    die "$queued message(s) still queued for '$id' — read them first (agentmsg read $room $id), or pass --force to discard them"
+  fi
+
+  # A watcher for a departed identity would poll a mailbox nobody owns.
+  _stop_watcher "$room" "$id" >/dev/null
+
+  if [[ "$queued" != 0 ]]; then
+    shopt -s nullglob
+    rm -f "$(msg_dir "$room")/${id}__"*.md
+    shopt -u nullglob
+  fi
+  rm -f "$f"
+
+  if [[ "$queued" != 0 ]]; then
+    echo "identity '$id' left room '$room' ($queued queued message(s) discarded)"
+  else
+    echo "identity '$id' left room '$room'"
+  fi
+}
+
+# rmroom — delete an entire room. Destructive and unrecoverable, so it always
+# prints what it is about to destroy and refuses without --force.
+cmd_rmroom() {
+  local room="" force=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      -*) die "unknown rmroom flag '$1' (try: agentmsg help)" ;;
+      *)  if [[ -z "$room" ]]; then room="$1"; else die "unexpected argument '$1'"; fi; shift ;;
+    esac
+  done
+  validate_name room "$room"; require_room "$room"
+
+  shopt -s nullglob
+  local msgs=( "$(msg_dir "$room")"/*.md )
+  local ags=(  "$(agents_dir "$room")"/*.agent )
+  local arch=( "$(archive_dir "$room")"/*.md )
+  shopt -u nullglob
+
+  if [[ "$force" != 1 ]]; then
+    die "refusing to delete room '$room' — ${#ags[@]} identity(ies), ${#msgs[@]} queued message(s), ${#arch[@]} archived. Re-run with --force if that is what you want."
+  fi
+
+  # Stop every watcher first; a live watcher would keep polling a deleted tree.
+  local pf id
+  shopt -s nullglob
+  for pf in "$(watchers_dir "$room")"/*.pid; do
+    id="$(basename "$pf" .pid)"
+    _stop_watcher "$room" "$id" >/dev/null
+  done
+  shopt -u nullglob
+
+  rm -rf "$(room_dir "$room")"
+  echo "deleted room '$room' (${#ags[@]} identity(ies), ${#msgs[@]} queued, ${#arch[@]} archived)"
+}
+
+# history — read the archive. Only meaningful for messages retired with
+# --archive; a plain `read` deleted them and there is nothing to show.
+cmd_history() {
+  local room="" id="" limit="$HISTORY_DEFAULT_LIMIT"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit) limit="${2:-}"; shift 2 || die "--limit needs a value" ;;
+      --all)   limit=0; shift ;;
+      -*) die "unknown history flag '$1' (try: agentmsg help)" ;;
+      *)  if [[ -z "$room" ]]; then room="$1"; elif [[ -z "$id" ]]; then id="$1";
+          else die "unexpected argument '$1'"; fi
+          shift ;;
+    esac
+  done
+  validate_name room "$room"; require_room "$room"
+  [[ -z "$id" ]] || validate_name id "$id"
+  [[ "$limit" =~ ^[0-9]+$ ]] || die "--limit must be a non-negative integer (0 = no limit), got '$limit'"
+
+  shopt -s nullglob
+  local files
+  # No id => the whole room's archive; an id => only that mailbox's.
+  if [[ -n "$id" ]]; then files=( "$(archive_dir "$room")/${id}__"*.md )
+  else                    files=( "$(archive_dir "$room")"/*.md ); fi
+  shopt -u nullglob
+
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "no archived messages in '$room'${id:+ for '$id'} — archiving is opt-in (agentmsg read $room <id> --archive)"
+    return 0
+  fi
+
+  IFS=$'\n' files=( $(printf '%s\n' "${files[@]}" | sort) ); unset IFS
+
+  # Keep the NEWEST n, but still print oldest-first so a conversation reads
+  # top-to-bottom the way it happened.
+  local total=${#files[@]} start=0
+  if (( limit > 0 && total > limit )); then start=$((total - limit)); fi
+  echo "=== $((total - start)) of $total archived message(s) in '$room'${id:+ for '$id'} (oldest first) ==="
+  local i
+  for (( i = start; i < total; i++ )); do
+    echo
+    echo "----- $(basename "${files[$i]}") -----"
+    cat "${files[$i]}"
   done
 }
 
 cmd_count() {
   local room="${1:-}" id="${2:-}"
   validate_name room "$room"; validate_name id "$id"; require_room "$room"
-  shopt -s nullglob
-  local files=( "$(msg_dir "$room")/${id}__"*.md )
-  shopt -u nullglob
-  echo "${#files[@]}"
+  _queued_count "$room" "$id"
 }
 
 cmd_rooms() {
@@ -209,17 +855,45 @@ usage() {
   cat <<EOF
 agentmsg v$VERSION — file-based agent-to-agent messaging   (root: $ROOT)
 
-  agentmsg init   <room>                     create a room
-  agentmsg join   <room> <id>                register an identity in a room
-  agentmsg agents <room>                     list registered identities
+rooms + identities:
+  agentmsg init     <room>                   create a room
+  agentmsg join     <room> <id> [role...]    register an identity, optionally with a role
+  agentmsg leave    <room> <id> [--force]    deregister an identity (--force discards queued mail)
   agentmsg rooms                             list rooms
-  agentmsg send   <room> <from> <to> <msg>   send a message
-  agentmsg read   <room> <id>                read + DELETE messages for <id>
-  agentmsg peek   <room> <id>                read WITHOUT deleting
-  agentmsg drain  <room> <id>                like read, but SILENT when empty (for hooks)
-  agentmsg count  <room> <id>                number of queued messages for <id>
+  agentmsg agents   <room>                   list registered identities and their roles
+  agentmsg rmroom   <room> --force           DELETE a room and everything in it
+
+sending + reading:
+  agentmsg send     <room> <from> <to> <msg>            send to one identity
+  agentmsg send     <room> <from> --all <msg>           send to everyone else in the room
+  agentmsg send     <room> <from> --role <role> <msg>   send to everyone with that role
+  agentmsg read     <room> <id> [--archive]  read + REMOVE messages for <id>
+  agentmsg peek     <room> <id>              read WITHOUT removing
+  agentmsg count    <room> <id>              number of queued messages for <id>
+  agentmsg drain    <room> <id> [--archive]  like read, but SILENT when empty (for hooks)
+  agentmsg history  <room> [<id>] [flags]    re-read archived messages
+
+background watcher:
+  agentmsg watch    <room> <id> [flags]      BLOCK until mail arrives, then drain + exit
+  agentmsg unwatch  <room> <id>              stop that mailbox's watcher (idempotent)
+  agentmsg watchers [<room>]                 list live watchers
+
+watch flags:
+  --interval <sec>   poll cadence (default $WATCH_DEFAULT_INTERVAL)
+  --timeout  <sec>   give up and exit $EXIT_WATCH_TIMEOUT after this long (default $WATCH_DEFAULT_TIMEOUT, 0 = never)
+  --no-drain         print the messages but leave them queued (peek semantics)
+  --replace          stop an existing watcher for this mailbox instead of erroring
+  --archive          archive delivered messages instead of deleting them
+  --no-archive       delete even when AGENT_MSG_ARCHIVE=1 is set
+
+history flags:
+  --limit <n>        show the newest n (default $HISTORY_DEFAULT_LIMIT)
+  --all              no limit
+
+watch exit codes: $EXIT_WATCH_MAIL = mail on stdout (relaunch me) | $EXIT_WATCH_TIMEOUT = idle heartbeat (relaunch me) | 1 = error
 
 Override storage root with AGENT_MSG_HOME=/path
+Set AGENT_MSG_ARCHIVE=1 to archive instead of delete everywhere by default
 EOF
 }
 
@@ -228,6 +902,9 @@ main() {
   case "$sub" in
     init)   cmd_init   "$@" ;;
     join)   cmd_join   "$@" ;;
+    leave)  cmd_leave  "$@" ;;
+    rmroom) cmd_rmroom "$@" ;;
+    history) cmd_history "$@" ;;
     agents) cmd_agents "$@" ;;
     rooms)  cmd_rooms  "$@" ;;
     send)   cmd_send   "$@" ;;
@@ -235,6 +912,9 @@ main() {
     peek)   cmd_peek   "$@" ;;
     drain)  cmd_drain  "$@" ;;
     count)  cmd_count  "$@" ;;
+    watch)    cmd_watch    "$@" ;;
+    unwatch)  cmd_unwatch  "$@" ;;
+    watchers) cmd_watchers "$@" ;;
     -v|--version|version) echo "agentmsg $VERSION" ;;
     ""|-h|--help|help) usage ;;
     *) die "unknown command '$sub' (try: agentmsg help)" ;;

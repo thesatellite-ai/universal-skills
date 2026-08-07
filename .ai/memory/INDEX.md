@@ -6,6 +6,10 @@ Newest first. Read this at session start; open a chunk only when it looks releva
 
 | id | type | title | tags | status |
 |---|---|---|---|---|
+| [2026-08-07-08](2026-08-07/08-broadcast-archive-leave-and-rmroom-the-v0-3-surface-and-its-.md) | decision | Broadcast, archive, leave and rmroom — the v0.3 surface and its guards | satl-agent-messaging, agentmsg, broadcast, archive, destructive, concurrency | active |
+| [2026-08-07-07](2026-08-07/07-identity-roles-are-free-text-labels-stamped-on-messages-at-s.md) | decision | Identity roles are free-text labels, stamped on messages at send time | satl-agent-messaging, agentmsg, roles, schema, backward-compat | active |
+| [2026-08-07-06](2026-08-07/06-skill-docs-must-probe-for-the-cli-path-never-hardcode-an-abs.md) | convention | Skill docs must probe for the CLI path, never hardcode an absolute one | conventions, skills, docs, cli, public-repo | active |
+| [2026-08-07-05](2026-08-07/05-agentmsg-watch-turns-background-command-exit-into-message-pu.md) | decision | agentmsg watch turns background-command exit into message push | satl-agent-messaging, agentmsg, background, delivery, bash | active |
 | [2026-08-07-04](2026-08-07/04-skills-lock-json-is-cli-generated-and-its-hash-is-not-sha256.md) | gotcha | skills-lock.json is CLI-generated and its hash is not sha256 of SKILL.md | skills-cli, lockfile, tooling | active |
 | [2026-08-07-03](2026-08-07/03-a-skill-cli-is-named-the-skill-name-minus-the-satl-prefix.md) | convention | A skill CLI is named the skill name minus the satl- prefix | conventions, cli, naming, skills | active |
 | [2026-08-07-02](2026-08-07/02-date-bucketed-immutable-chunks-over-topic-bucketed-files.md) | decision | Date-bucketed immutable chunks over topic-bucketed files | satl-project-memory, architecture, storage | active |

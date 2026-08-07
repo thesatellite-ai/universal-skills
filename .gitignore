@@ -1,4 +1,7 @@
-.claude/settings.local.json
+# Machine-local agent state. Was previously just settings.local.json, but
+# .claude/skills/ also accumulates symlinks into the (gitignored) .agents/ tree,
+# which would land in a public clone as dangling links. Ignore the whole dir.
+.claude/
 .DS_Store
 .agents/
 skills-lock.json

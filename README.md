@@ -92,7 +92,7 @@ Each skill links to its directory, which contains a `SKILL.md` plus a `README.md
 | [satl&#8209;code&#8209;standards](satl-code-standards/) | The standing engineering bar for every code change — four universal, stack-agnostic pillars: full type safety, zero hardcoded strings, context-dense comments, modular/importable structure. Points to project stack skills for concrete libraries. |
 | [satl&#8209;favicon&#8209;audit](satl-favicon-audit/) | Diagnose + fix why a site shows the wrong/default/scaffold favicon in Google Search or the tab — broken web-manifest icon paths, missing 48px-multiple icon, scaffold leftovers, or a stale Google cache. Triages live-vs-cached first. |
 | [satl&#8209;project&#8209;memory](satl-project-memory/) | Give a project a real memory: dated, immutable knowledge chunks in `.ai/memory/` (what / **why** / how / evidence / don't) plus `INDEX.md` + a `FILES.md` reverse index, so recall fires before you edit a file — not just at session start. Ships the optional `project-memory` helper. |
-| [satl&#8209;agent&#8209;messaging](satl-agent-messaging/) | File-based mailbox so two or three Claude agents in separate sessions can pass notes — one message per file, read-once. Ships the `agentmsg` CLI, an auto-read hook installer, and playbooks. |
+| [satl&#8209;agent&#8209;messaging](satl-agent-messaging/) | File-based mailbox so two or three Claude agents in separate sessions can pass notes — one message per file, read-once. Ships the `agentmsg` CLI with roles, `--all`/`--role` broadcast, optional archiving with replay, a background `watch` service that auto-delivers new mail, an auto-read hook installer, and playbooks. |
 
 ### Repo launch family
 

@@ -6,7 +6,11 @@ Grep this for a path (and its parent dirs) BEFORE editing that file, then read t
 
 | path | chunks |
 |---|---|
-| satl-agent-messaging/agentmsg | 2026-08-07-03 |
+| satl-agent-messaging/SKILL.md | 2026-08-07-05, 2026-08-07-06, 2026-08-07-07, 2026-08-07-08 |
+| satl-agent-messaging/agentmsg | 2026-08-07-03, 2026-08-07-05, 2026-08-07-07, 2026-08-07-08 |
+| satl-agent-messaging/bench.sh | 2026-08-07-08 |
+| satl-agent-messaging/playbooks/README.md | 2026-08-07-06 |
+| satl-agent-messaging/test.sh | 2026-08-07-05, 2026-08-07-07, 2026-08-07-08 |
 | satl-project-memory/SKILL.md | 2026-08-07-02 |
 | satl-project-memory/project-memory | 2026-08-07-01, 2026-08-07-02, 2026-08-07-03 |
 | satl-project-memory/test.sh | 2026-08-07-01 |

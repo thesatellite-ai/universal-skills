@@ -29,13 +29,22 @@ Each agent needs a name in the room.
 "$AGENTMSG" join lobby alice
 ```
 
+Optionally give an identity a **role** — free text, spaces allowed, no quoting needed. It's a label so humans and agents can tell who is who:
+
+```bash
+"$AGENTMSG" join lobby bob CTO
+"$AGENTMSG" join lobby alice Head of Product
+```
+
 Check they're both there:
 
 ```bash
 "$AGENTMSG" agents lobby
-# → alice
-#   bob
+# → alice — Head of Product
+#   bob — CTO
 ```
+
+Re-running `join` with a different role changes it (and keeps the original join date). Roles are labels only — nothing enforces them.
 
 ## Step 3 — bob sends alice a message
 
@@ -76,10 +85,45 @@ If you want to see what's waiting *without* clearing it, use `peek` instead of `
 "$AGENTMSG" read lobby bob         # now consume it
 ```
 
+## Step 6 — keep a copy instead of destroying it (optional)
+
+`read` is destructive by design, which means a note you wanted to keep is unrecoverable. `--archive` moves it to `lobby/archive/` instead of deleting it — it still leaves the inbox, so delivery stays exactly-once:
+
+```bash
+"$AGENTMSG" send lobby bob alice "ship date is the 14th"
+"$AGENTMSG" read    lobby alice --archive     # === … (read-once, archiving) ===
+"$AGENTMSG" count   lobby alice               # → 0, it left the inbox
+"$AGENTMSG" history lobby alice               # → replays it, oldest first
+```
+
+Set `AGENT_MSG_ARCHIVE=1` in your environment to make that the default everywhere, and pass `--no-archive` when you want a one-off delete.
+
+## Step 7 — wait for mail instead of polling by hand
+
+`watch` blocks until something arrives, prints it, and exits. Try it with two terminals, or with a backgrounded send:
+
+```bash
+( sleep 3; "$AGENTMSG" send lobby alice bob "heads up" ) &
+"$AGENTMSG" watch lobby bob --interval 1
+# blocks ~3s, then prints the note and exits 0
+```
+
+Exit `0` means mail (on stdout); exit `2` means the `--timeout` elapsed with an empty mailbox. That exit is exactly how a Claude session gets woken up — see [playbook 2](02-adopting-an-identity.md). Stop a backgrounded one with `unwatch lobby bob`, and list every live one with `watchers`.
+
+## Step 8 — clean up (optional)
+
+```bash
+"$AGENTMSG" leave  lobby alice          # deregister; refuses if mail is queued
+"$AGENTMSG" rmroom lobby --force        # delete the room and everything in it
+```
+
+Both are guarded: `leave` won't silently destroy queued mail (pass `--force` to accept that), and `rmroom` prints what it's about to delete and refuses without `--force`.
+
 ## What you just learned
 
-- `init` → `join` → `send` → `read` is the complete lifecycle.
+- `init` → `join` → `send` → `read` is the complete lifecycle; `leave` and `rmroom` undo it.
 - Messages wait on disk until the recipient reads them — order and timing are up to the readers.
-- `read` deletes; `peek` doesn't; `count` just tells you how many are waiting.
+- `read` deletes; `peek` doesn't; `--archive` keeps a copy; `count` just tells you how many are waiting.
+- `watch` turns "poll for mail" into "block until mail", which is what makes automatic delivery possible.
 
 Next: [drive this from an actual Claude Code session](02-adopting-an-identity.md).

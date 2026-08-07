@@ -1,0 +1,47 @@
+name: test
+
+# The deliverable here is markdown plus two bash CLIs, so there is nothing to
+# build — this workflow exists purely so the test suites and the structural
+# lint run on someone other than the author's laptop.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    name: suites (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # macOS ships bash 3.2 and Linux ships bash 5.x. Both are run deliberately:
+    # the scripts avoid bash 4+ features (no mapfile, no ${var,,}, no
+    # associative arrays) and 3.2 is where a regression on that would surface.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versions
+        run: |
+          bash --version | head -n1
+          perl --version | sed -n '2p'
+
+      - name: Syntax check every shipped script
+        run: |
+          set -euo pipefail
+          find . -path ./node_modules -prune -o \( -name '*.sh' -o -name 'agentmsg' -o -name 'project-memory' \) -print \
+            | while read -r f; do echo "-- $f"; bash -n "$f"; done
+
+      - name: Lint skill structure
+        run: bash lint-skills.sh
+
+      - name: satl-project-memory suite
+        run: bash satl-project-memory/test.sh
+
+      - name: satl-agent-messaging suite
+        run: bash satl-agent-messaging/test.sh
