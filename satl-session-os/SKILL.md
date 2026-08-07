@@ -10,15 +10,12 @@ description: >-
 
 # satl-session-os
 
-If the project has a session-logging system (a `.ai/` logs dir, or a logging
-skill the project designates), run it like an OS in the background — the user
-should not have to invoke it manually.
+If the project has a session-logging system (a `.ai/` logs dir, or a logging skill the project designates), run it like an OS in the background — the user should not have to invoke it manually.
 
 ## Auto-triggers
 
 - **Session start** — open/append the session log as the FIRST action.
-- **User corrects you** — log the correction immediately (don't wait to be
-  asked).
+- **User corrects you** — log the correction immediately (don't wait to be asked).
 - **Non-obvious decision** — record it with rationale.
 - **You made a mistake** — self-report it to the incident log; do not hide it.
 - **Task start / done** — mark it.
@@ -28,7 +25,4 @@ should not have to invoke it manually.
 
 ## Non-negotiable
 
-Session-start and session-end logging are mandatory. Without them the session
-is invisible to future sessions. If the project designates a specific logging
-skill/command, defer to it; this skill only enforces the *discipline* of
-always running it.
+Session-start and session-end logging are mandatory. Without them the session is invisible to future sessions. If the project designates a specific logging skill/command, defer to it; this skill only enforces the *discipline* of always running it.

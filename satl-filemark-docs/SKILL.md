@@ -10,21 +10,16 @@ description: >-
 
 # satl-filemark-docs
 
-In repos whose internal docs are read through **filemark**, any internal
-brainstorm / plan / problem doc / roadmap / ADR / architecture note / task
-list / component spec must use filemark's component grammar. Invoke the
-`/filemark` skill first — do not freehand components from memory.
+In repos whose internal docs are read through **filemark**, any internal brainstorm / plan / problem doc / roadmap / ADR / architecture note / task list / component spec must use filemark's component grammar. Invoke the `/filemark` skill first — do not freehand components from memory.
 
 ## Applies to (internal, filemark-rendered)
 
-- `.ai/**/*.md` — plans, snapshots, memory, decisions, incidents, guides,
-  workflows, prompts, PATTERNS, ARCHITECTURE, STACK
+- `.ai/**/*.md` — plans, snapshots, memory, decisions, incidents, guides, workflows, prompts, PATTERNS, ARCHITECTURE, STACK
 - Any `PLAN.md`, `ROADMAP.md`, `TASKS.md`, `*_ADR.md`, `*_SPEC.md`
 
 ## Does NOT apply
 
-- Public, GitHub-rendered files: `README.md`, `CLAUDE.md`, `CHANGELOG.md`,
-  `CONTRIBUTING.md`, public `docs/`, per-module READMEs → keep plain markdown.
+- Public, GitHub-rendered files: `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, public `docs/`, per-module READMEs → keep plain markdown.
 - Terminal/chat output → plain markdown/fragments, never filemark components.
 
 ## Prefer
@@ -32,10 +27,8 @@ list / component spec must use filemark's component grammar. Invoke the
 - Callouts: `<Callout type="info|warn|danger|tip">` for rules/gotchas.
 - Structure: `<Tabs>`, `<Details>`, `<ADR>` for decisions.
 - Data: `<Stats>`, `<Datagrid>`, `<Chart>`, `<Kanban>`.
-- Tasks: `<TaskList>`, `<TaskStats>`, `<TaskTimeline>` + sigil bullets
-  (`- [ ]`, `- [>]`, `- [x]`) and the filter DSL.
+- Tasks: `<TaskList>`, `<TaskStats>`, `<TaskTimeline>` + sigil bullets (`- [ ]`, `- [>]`, `- [x]`) and the filter DSL.
 
 ## Survival rules
 
-Blank lines around block components. No raw `<` inside prose. (The `/filemark`
-skill enforces both — defer to it.)
+Blank lines around block components. No raw `<` inside prose. (The `/filemark` skill enforces both — defer to it.)

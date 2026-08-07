@@ -1,12 +1,8 @@
 # EXAMPLES — working reference implementation
 
-These files are lifted **verbatim** from the IFPG Hub plan-and-roadmap site
-that shipped to https://ifpg-hub-plan.vercel.app. They are not pseudocode or
-illustration. Every file here is production-tested code that works end-to-end.
+These files are lifted **verbatim** from the IFPG Hub plan-and-roadmap site that shipped to https://ifpg-hub-plan.vercel.app. They are not pseudocode or illustration. Every file here is production-tested code that works end-to-end.
 
-When you build a new plan-and-roadmap site, use this directory as the
-**reference implementation to clone**. Copy the file, rename what's
-client-specific, swap the content data. Don't rewrite from scratch.
+When you build a new plan-and-roadmap site, use this directory as the **reference implementation to clone**. Copy the file, rename what's client-specific, swap the content data. Don't rewrite from scratch.
 
 ## What's where
 
@@ -69,14 +65,11 @@ EXAMPLES/
 
 ### If you're adapting to an existing project
 
-Same idea, but be careful with naming conflicts. The skill assumes file paths
-in `src/lib/pitch-data.ts`, `src/components/pitch/sections/`, etc. If the
-target project has different conventions, adapt the imports.
+Same idea, but be careful with naming conflicts. The skill assumes file paths in `src/lib/pitch-data.ts`, `src/components/pitch/sections/`, etc. If the target project has different conventions, adapt the imports.
 
 ## Client content swap checklist
 
-When porting these files to a new client, every file needs at least one of
-these client-specific things replaced. Use this list as a checklist:
+When porting these files to a new client, every file needs at least one of these client-specific things replaced. Use this list as a checklist:
 
 ### `lib/pitch-data.ts`
 - [ ] `sections` array — adjust section list (skip Problem / Reuse if desired)
@@ -135,20 +128,15 @@ these client-specific things replaced. Use this list as a checklist:
 
 ### `lib/pitch-data.ts` (highest churn — most editing on each new project)
 
-Single source of truth for every section's content. Sections array drives the
-DeckShell side-nav. The `meta` object drives the cover slide. Edit this file
-heavily for each client.
+Single source of truth for every section's content. Sections array drives the DeckShell side-nav. The `meta` object drives the cover slide. Edit this file heavily for each client.
 
 ### `lib/module-data.ts` (high churn)
 
-Modules drive `/module/$slug` deep-dives AND the `/modules` index. Each module
-has 7 fields that are content-heavy. v1 modules deserve full treatment;
-v1.5/v2 can be lighter. Strategic themes for v2 (no specific vendor names).
+Modules drive `/module/$slug` deep-dives AND the `/modules` index. Each module has 7 fields that are content-heavy. v1 modules deserve full treatment; v1.5/v2 can be lighter. Strategic themes for v2 (no specific vendor names).
 
 ### `styles.css` (low churn — tokens + utility classes)
 
-Edit only the brand color block if the client's palette differs. Everything
-else (shadows, animations, gradients) is the framework.
+Edit only the brand color block if the client's palette differs. Everything else (shadows, animations, gradients) is the framework.
 
 ### `components/pitch/section.tsx` (zero churn — primitive)
 
@@ -160,24 +148,17 @@ Don't edit unless adding new nav items (e.g. extra route in the topbar).
 
 ### `components/pitch/module-page.tsx` (zero churn — template)
 
-The whole module page renders from data. Don't touch the layout; edit
-module-data.ts to change content.
+The whole module page renders from data. Don't touch the layout; edit module-data.ts to change content.
 
 ### `components/pitch/module-mocks.tsx` (zero churn — visual library)
 
-7 mockup variants cover most needs. If you need a new mockType (e.g. "chart"
-or "map"), add a new function here + extend the `mockType` union in
-module-data.ts.
+7 mockup variants cover most needs. If you need a new mockType (e.g. "chart" or "map"), add a new function here + extend the `mockType` union in module-data.ts.
 
 ### `components/pitch/sections/*.tsx` (medium churn — section logic)
 
-Some sections (01 cover, 03 solution, 09 team, 13 close) have hard-coded copy
-inside the JSX that needs updating per client. Other sections are pure
-data-driven (06 scope, 07 features, 08 timeline, 09 team data) — those only
-need pitch-data.ts edits.
+Some sections (01 cover, 03 solution, 09 team, 13 close) have hard-coded copy inside the JSX that needs updating per client. Other sections are pure data-driven (06 scope, 07 features, 08 timeline, 09 team data) — those only need pitch-data.ts edits.
 
-Where copy is hard-coded, look for english strings inside `<Headline>`,
-`<Lede>`, and `<Eyebrow>` and update.
+Where copy is hard-coded, look for english strings inside `<Headline>`, `<Lede>`, and `<Eyebrow>` and update.
 
 ### `routes/__root.tsx` (low churn)
 
@@ -185,8 +166,7 @@ Only `<title>` and `<meta description>` change per client.
 
 ### `routes/index.tsx` (low churn — orchestrator)
 
-If you skip sections (Problem, Reuse), remove their imports and JSX
-references. Match against the `sections` array in pitch-data.ts.
+If you skip sections (Problem, Reuse), remove their imports and JSX references. Match against the `sections` array in pitch-data.ts.
 
 ### `routes/modules.tsx` (zero churn)
 
@@ -198,15 +178,11 @@ Wrapper around the ModulePage component. Don't edit.
 
 ### `routes/scenarios.tsx` (medium churn — scenario content)
 
-Scenarios are defined INLINE in this file (not in pitch-data.ts). When
-porting, edit the `scenarios` const at the top. 3-4 scenarios is the sweet
-spot. Pick scenarios that span creation, sync, and completion events
-across both products.
+Scenarios are defined INLINE in this file (not in pitch-data.ts). When porting, edit the `scenarios` const at the top. 3-4 scenarios is the sweet spot. Pick scenarios that span creation, sync, and completion events across both products.
 
 ### `config/vite.config.ts` (one-line edit)
 
-The `nitro.preset` line is the magic. Set it to `"vercel"` for Vercel
-deploys, otherwise `undefined` for local dev. Already wired here.
+The `nitro.preset` line is the magic. Set it to `"vercel"` for Vercel deploys, otherwise `undefined` for local dev. Already wired here.
 
 ### `config/vercel.json` (zero churn)
 
@@ -226,8 +202,6 @@ pnpm exec vite dev --port 3939
 # Press Cmd+P → don't bother, print is not supported
 ```
 
-If any section renders blank, you have a `motion` `whileInView` somewhere.
-Replace with `initial={false}` + `animate={...}`. Every time.
+If any section renders blank, you have a `motion` `whileInView` somewhere. Replace with `initial={false}` + `animate={...}`. Every time.
 
-If a route returns 200 but content is blank, check the browser console.
-Recharts errors mean you imported it back accidentally. Use inline SVG.
+If a route returns 200 but content is blank, check the browser console. Recharts errors mean you imported it back accidentally. Use inline SVG.
