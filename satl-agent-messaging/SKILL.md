@@ -5,9 +5,9 @@ description: File-based mailbox so two or three Claude agents in separate sessio
 
 # satl-agent-messaging
 
-A dead-simple, no-server way for a few Claude Code sessions to talk. Each session adopts an **identity** (bob, alice, charlie…) inside a shared **room**. Sending drops one file into the recipient's queue; reading prints and **deletes** those files (read-once). Storage is plain files under `~/agent-messages/` — no server, no DB, no network. A per-session background watcher (`agentmsg watch`) makes delivery automatic, so nobody has to type "check my messages".
+A dead-simple, no-server way for a few Claude Code sessions to talk. Each session adopts an **identity** (bob, alice, charlie…) inside a shared **room**. Sending drops one file into the recipient's queue; reading prints those files and **removes them from the inbox** (read-once — deleted, or moved to `archive/` if you ask to keep them). Storage is plain files under `~/agent-messages/` — no server, no DB, no network. A per-session background watcher (`agentmsg watch`) makes delivery automatic, so nobody has to type "check my messages".
 
-The CLI `agentmsg` (next to this file) does all the work. Prefer it over hand-rolling `ls`/`cat`/`rm` — it handles routing, name validation, unique filenames, and atomic read-then-delete.
+The CLI `agentmsg` (next to this file) does all the work. Prefer it over hand-rolling `ls`/`cat`/`rm` — it handles routing, name validation, unique filenames, role lookup, fan-out, atomic publish, and atomic read-then-retire.
 
 ## Cold start — the user invoked this skill with nothing else
 
