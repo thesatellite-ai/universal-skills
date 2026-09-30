@@ -36,6 +36,7 @@ task test            # both suites only
 
 bash satl-project-memory/test.sh     # 41 tests; or: cd satl-project-memory && task test
 bash satl-agent-messaging/test.sh    # 181 tests; or: cd satl-agent-messaging && task test
+bash satl-spec-promises/test.sh      # 32 tests; needs python3 (stdlib only)
 ```
 
 Both suites run in an isolated `mktemp -d` tree and never touch real state. `.github/workflows/test.yml` runs the lint plus both suites on push and PR, on **ubuntu-latest and macos-latest** — the macOS runner matters because it ships bash 3.2, so the scripts must avoid bash 4+ features (`mapfile`, `${var,,}`, associative arrays). Run the suite of any skill whose script you touch.

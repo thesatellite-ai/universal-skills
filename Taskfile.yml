@@ -16,6 +16,7 @@ tasks:
     cmds:
       - bash satl-project-memory/test.sh
       - bash satl-agent-messaging/test.sh
+      - bash satl-spec-promises/test.sh
 
   lint:
     desc: Check skill structure — frontmatter, name/dir match, README table, tests

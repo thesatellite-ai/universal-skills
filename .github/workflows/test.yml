@@ -45,3 +45,6 @@ jobs:
 
       - name: satl-agent-messaging suite
         run: bash satl-agent-messaging/test.sh
+
+      - name: satl-spec-promises suite
+        run: bash satl-spec-promises/test.sh
