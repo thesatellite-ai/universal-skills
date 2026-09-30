@@ -1,0 +1,28 @@
+<h1>The picture</h1>
+<p>envcheck at two zoom levels, then the roadmap.</p>
+
+<span class="zoom">Zoom 1 of 2: the world around it</span>
+<h2 id="where-it-sits">Where it sits</h2>
+<p>It runs before your app, on the same file your app will read.</p>
+<div class="flow">
+  <div class="node"><b>Your team</b><span>writes the schema</span></div><div class="arrow"></div>
+  <div class="node core"><b>envcheck</b><span>schema + .env → problems</span></div><div class="arrow"></div>
+  <div class="node"><b>CI or you</b><span>pass or fail</span></div>
+</div>
+
+<span class="zoom">Zoom 2 of 2: inside</span>
+<h2 id="inside">What happens inside</h2>
+<p>Each variable in the schema is checked against its line in the file, and every result is collected before anything is printed.</p>
+<div class="flow">
+  <div class="node"><b>Read schema</b><span>a broken schema exits 2</span></div><div class="arrow"></div>
+  <div class="node"><b>Read .env</b><span>never modified</span></div><div class="arrow"></div>
+  <div class="node core"><b>Check each variable</b><span>required, type, oneof</span></div><div class="arrow"></div>
+  <div class="node"><b>Report</b><span>secrets masked</span></div>
+</div>
+
+<h2 id="roadmap">The roadmap</h2>
+<div class="phases">
+  <div class="phase now"><div class="ph">v1, now</div><h3>Check</h3><p>Schema, types, defaults, JSON, exit codes.</p></div>
+  <div class="phase"><div class="ph">v2</div><h3>Environments</h3><p>Staging and production overrides in one schema.</p></div>
+  <div class="phase maybe"><div class="ph">Maybe never</div><h3>Vault loader</h3><p>Read values from a secret store.</p></div>
+</div>

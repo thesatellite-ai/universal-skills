@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>envcheck · Cookbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme inline {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --color-mortar: var(--bg); --color-surface: var(--surface); --color-ink: var(--ink);
+  --color-soft: var(--soft); --color-faint: var(--faint); --color-line: var(--line);
+}
+</style>
+<link rel="stylesheet" href="style.css"></head>
+<body class="bg-mortar text-ink font-sans antialiased"><header class="topbar"><div class="mx-auto max-w-6xl px-4 sm:px-6 flex items-center gap-6"><a href="index.html" class="flex items-center gap-2 font-semibold text-[15px] tracking-tight shrink-0"><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true" fill="currentColor"><rect x="0" y="0" width="9.5" height="5.5" rx="1"/><rect x="10.5" y="0" width="5.5" height="5.5" rx="1"/><rect x="0" y="6.5" width="4.5" height="5.5" rx="1"/><rect x="5.5" y="6.5" width="10.5" height="5.5" rx="1"/></svg>envcheck</a><nav class="flex gap-1 overflow-x-auto min-w-0" aria-label="Site"><a href="index.html" class="navlink">Overview</a><a href="why.html" class="navlink">Why</a><a href="picture.html" class="navlink">Picture</a><a href="how-it-works.html" class="navlink">How it works</a><a href="guide.html" class="navlink">Guide</a><a href="cookbook.html" class="navlink is-on" aria-current=page>Cookbook</a><a href="decisions.html" class="navlink">Decisions</a></nav></div></header><div class="mx-auto max-w-[760px] px-4 sm:px-6 py-10"><main class="prose"><h1 id="cookbook">Cookbook</h1><p class="readtime">1 min read</p><p>Real tasks, start to finish: every file in full, and exactly what comes out.</p><h2 id="check-a-project-before-deploying">Check a project before deploying</h2><p><strong>Goal:</strong> a new project, one schema, one check.</p><div class="code"><div class="fname">files</div><pre><code>env.schema.yaml
+.env.production</code></pre></div><div class="pair"><div class="code"><div class="fname">env.schema.yaml</div><pre><code>PORT: {type: int, default: 8080}
+DATABASE_URL: {type: url, required: true}
+API_KEY: {secret: true, required: true}</code></pre></div><div class="code"><div class="fname">.env.production</div><pre><code>DATABASE_URL=postgres://db.internal/app
+API_KEY=example-key-not-a-real-one</code></pre></div></div><p><strong>What you get:</strong></p><div class="code"><div class="fname">terminal</div><pre><code>$ envcheck .env.production
+✓ DATABASE_URL
+✓ API_KEY
+✓ PORT uses its default, 8080
+0 problems</code></pre></div><p><strong>What this used:</strong> <a href="guide.html#declaring-variables">declaring variables</a>, <a href="guide.html#defaults">defaults</a>, <a href="guide.html#secrets-never-print">secrets</a>.</p><h2 id="stop-a-bad-deploy-in-github-actions">Stop a bad deploy in GitHub Actions</h2><p><strong>Goal:</strong> the deploy job fails before anything ships if the production file is wrong.</p><div class="code"><div class="fname">.github/workflows/deploy.yml</div><pre><code>jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: envcheck .env.production --json &gt; envcheck.json
+      - run: ./deploy.sh</code></pre></div><p><strong>What you get</strong> when <code>PORT=eighty</code> slipped in:</p><div class="code"><div class="fname">envcheck.json</div><pre><code>{&quot;ok&quot;: false, &quot;problems&quot;: [{&quot;var&quot;: &quot;PORT&quot;, &quot;rule&quot;: &quot;type&quot;, &quot;message&quot;: &quot;must be an int&quot;}]}</code></pre></div><p>The <code>envcheck</code> step exits 1, so <code>./deploy.sh</code> never runs.</p><p><strong>What this used:</strong> <a href="guide.html#json-output">JSON output</a>, <a href="guide.html#exit-codes">exit codes</a>.</p><a class="next" href="decisions.html"><span>Next</span>Decisions</a></main></div><footer class="border-t border-line py-6 text-center text-xs text-soft">Generated from <code>src/cookbook.md</code> by design-spec. Edit the source, then rebuild.</footer></body></html>

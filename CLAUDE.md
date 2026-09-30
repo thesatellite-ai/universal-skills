@@ -30,16 +30,17 @@ task uninstall       # remove all satl-* from ~/.claude/skills
 Only skills that ship executables have tests, and they live in the skill's own directory:
 
 ```bash
-task check           # everything CI runs: lint + both suites
+task check           # everything CI runs: lint + every suite
 task lint            # structural checks only (bash lint-skills.sh)
-task test            # both suites only
+task test            # every suite only
 
 bash satl-project-memory/test.sh     # 41 tests; or: cd satl-project-memory && task test
 bash satl-agent-messaging/test.sh    # 181 tests; or: cd satl-agent-messaging && task test
+bash satl-design-spec/test.sh        # 44 tests; needs python3 (stdlib only)
 bash satl-spec-promises/test.sh      # 32 tests; needs python3 (stdlib only)
 ```
 
-Both suites run in an isolated `mktemp -d` tree and never touch real state. `.github/workflows/test.yml` runs the lint plus both suites on push and PR, on **ubuntu-latest and macos-latest** — the macOS runner matters because it ships bash 3.2, so the scripts must avoid bash 4+ features (`mapfile`, `${var,,}`, associative arrays). Run the suite of any skill whose script you touch.
+Every suite runs in an isolated `mktemp -d` tree and never touch real state. `.github/workflows/test.yml` runs the lint plus every suite on push and PR, on **ubuntu-latest and macos-latest** — the macOS runner matters because it ships bash 3.2, so the scripts must avoid bash 4+ features (`mapfile`, `${var,,}`, associative arrays). Run the suite of any skill whose script you touch.
 
 ## Project structure
 
@@ -53,7 +54,7 @@ satl-<name>/            one skill each — SKILL.md (required) + README.md (conv
   templates/ EXAMPLES/  optional supporting assets (satl-brand-kit, satl-replay-checklist)
 brand/                  visual identity — brand.json manifest, gen-brand.mjs, SVGs, png/, tokens
 lint-skills.sh          structural lint for every satl-*/ (frontmatter, README table, tests)
-.github/workflows/      test.yml — lint + both suites on ubuntu and macos
+.github/workflows/      test.yml — lint + every suite on ubuntu and macos
 
 docsi/                  SYMLINK, gitignored — repolink-managed, points into a private repo
 .ai/memory/             project memory store (see top of this file)
@@ -85,7 +86,7 @@ The `description` field is therefore the most important line in a skill: it is t
 
 - **Repo launch** — `satl-ship-repo` orchestrates `satl-brand-kit`, `satl-readme-pro`, `satl-oss-scaffold`, `satl-repo-meta`, all reading one per-repo `brand.json` (schema at `satl-ship-repo/brand.schema.json`).
 - **Context and memory** — `satl-project-memory` (the store), `satl-session-os` (the discipline that decides *when* to write), `satl-persist-context` (promotes durable rules into `CLAUDE.md`), `satl-context-handoff` (one-shot resume doc), `satl-ai-context` (writes files like this one), `satl-replay-checklist`.
-- **Writing and design** — `satl-homepage-positioning`, `satl-frontend-pitch`, `satl-readme-pro`, `satl-filemark-docs`, `satl-prompt-builder`.
+- **Writing and design** — `satl-design-spec`, `satl-homepage-positioning`, `satl-frontend-pitch`, `satl-readme-pro`, `satl-filemark-docs`, `satl-prompt-builder`.
 - **Standalone** — `satl-code-standards`, `satl-research-closer`, `satl-favicon-audit`, `satl-features-registry`, `satl-agent-messaging`, `satl-save-verbatim`.
 
 ## Adding a skill
@@ -98,8 +99,8 @@ The `description` field is therefore the most important line in a skill: it is t
 
 ## What's implemented
 
-- 21 skills, each with `SKILL.md` + `README.md`.
-- Two shipped executables with test suites: `satl-project-memory/project-memory` (41 tests), `satl-agent-messaging/agentmsg` (181 tests) — the latter covering rooms, identities with roles, direct + `--all`/`--role` broadcast, read/peek/archive/history, `leave`/`rmroom`, and a blocking `watch` service with a pidfile registry (`unwatch`, `watchers`).
+- 23 skills, each with `SKILL.md` + `README.md`.
+- Four shipped executables with test suites: `satl-design-spec/design-spec` (44 tests; python3, because it parses markdown and renders HTML; ships templates and a worked example, `examples/envcheck`), `satl-spec-promises/spec-promises` (32 tests; python3, so the gate it installs works in a project of any language), `satl-project-memory/project-memory` (41 tests), `satl-agent-messaging/agentmsg` (181 tests) — the latter covering rooms, identities with roles, direct + `--all`/`--role` broadcast, read/peek/archive/history, `leave`/`rmroom`, and a blocking `watch` service with a pidfile registry (`unwatch`, `watchers`).
 - Full brand kit in `brand/`, regenerable via `brand/gen-brand.mjs` and `brand/Taskfile.yml`.
 - Repo-level install/uninstall tasks, symlink and copy modes.
 - A populated project memory store in `.ai/memory/`.
@@ -114,8 +115,8 @@ Assume none of the following exist:
 - **Markdown *content* is still unvalidated.** The lint checks frontmatter, `name`-matches-directory, README-table presence, and that an executable ships a `test.sh`. It does not catch a broken cross-skill reference, a dead link, a stale example, or prose that contradicts the code.
 - **No `LICENSE`, `CONTRIBUTING.md`, `CHANGELOG.md`, or `SECURITY.md`** at the repo root, and no issue/PR templates under `.github/` — despite `satl-oss-scaffold` being the skill that generates exactly those files for other repos. `.github/` currently holds only the test workflow.
 - **No versioning or releases.** No tags, no changelog, no semver. `main` is the product.
-- **`skills-lock.json` is stale and partial** — it lists 13 of 21 skills. It is generated by the `skills` CLI and lags the repo.
-- **Most skills ship no executable.** Only two do. Do not assume a skill has a CLI or tests.
+- **`skills-lock.json` is stale and partial** — it lists 13 of 23 skills. It is generated by the `skills` CLI and lags the repo.
+- **Most skills ship no executable.** Only four do. Do not assume a skill has a CLI or tests.
 
 ## Conventions
 

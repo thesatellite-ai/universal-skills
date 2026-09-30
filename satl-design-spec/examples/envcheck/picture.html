@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>envcheck · Picture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme inline {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --color-mortar: var(--bg); --color-surface: var(--surface); --color-ink: var(--ink);
+  --color-soft: var(--soft); --color-faint: var(--faint); --color-line: var(--line);
+}
+</style>
+<link rel="stylesheet" href="style.css"></head>
+<body class="bg-mortar text-ink font-sans antialiased"><header class="topbar"><div class="mx-auto max-w-6xl px-4 sm:px-6 flex items-center gap-6"><a href="index.html" class="flex items-center gap-2 font-semibold text-[15px] tracking-tight shrink-0"><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true" fill="currentColor"><rect x="0" y="0" width="9.5" height="5.5" rx="1"/><rect x="10.5" y="0" width="5.5" height="5.5" rx="1"/><rect x="0" y="6.5" width="4.5" height="5.5" rx="1"/><rect x="5.5" y="6.5" width="10.5" height="5.5" rx="1"/></svg>envcheck</a><nav class="flex gap-1 overflow-x-auto min-w-0" aria-label="Site"><a href="index.html" class="navlink">Overview</a><a href="why.html" class="navlink">Why</a><a href="picture.html" class="navlink is-on" aria-current=page>Picture</a><a href="how-it-works.html" class="navlink">How it works</a><a href="guide.html" class="navlink">Guide</a><a href="cookbook.html" class="navlink">Cookbook</a><a href="decisions.html" class="navlink">Decisions</a></nav></div></header><div class="mx-auto max-w-[760px] px-4 sm:px-6 py-10"><main class="prose"><h1>The picture</h1><p class="readtime">1 min read</p>
+<p>envcheck at two zoom levels, then the roadmap.</p>
+
+<span class="zoom">Zoom 1 of 2: the world around it</span>
+<h2 id="where-it-sits">Where it sits</h2>
+<p>It runs before your app, on the same file your app will read.</p>
+<div class="flow">
+  <div class="node"><b>Your team</b><span>writes the schema</span></div><div class="arrow"></div>
+  <div class="node core"><b>envcheck</b><span>schema + .env → problems</span></div><div class="arrow"></div>
+  <div class="node"><b>CI or you</b><span>pass or fail</span></div>
+</div>
+
+<span class="zoom">Zoom 2 of 2: inside</span>
+<h2 id="inside">What happens inside</h2>
+<p>Each variable in the schema is checked against its line in the file, and every result is collected before anything is printed.</p>
+<div class="flow">
+  <div class="node"><b>Read schema</b><span>a broken schema exits 2</span></div><div class="arrow"></div>
+  <div class="node"><b>Read .env</b><span>never modified</span></div><div class="arrow"></div>
+  <div class="node core"><b>Check each variable</b><span>required, type, oneof</span></div><div class="arrow"></div>
+  <div class="node"><b>Report</b><span>secrets masked</span></div>
+</div>
+
+<h2 id="roadmap">The roadmap</h2>
+<div class="phases">
+  <div class="phase now"><div class="ph">v1, now</div><h3>Check</h3><p>Schema, types, defaults, JSON, exit codes.</p></div>
+  <div class="phase"><div class="ph">v2</div><h3>Environments</h3><p>Staging and production overrides in one schema.</p></div>
+  <div class="phase maybe"><div class="ph">Maybe never</div><h3>Vault loader</h3><p>Read values from a secret store.</p></div>
+</div>
+<a class="next" href="how-it-works.html"><span>Next</span>How it works</a></main></div><footer class="border-t border-line py-6 text-center text-xs text-soft">Generated from <code>src/picture.html</code> by design-spec. Edit the source, then rebuild.</footer></body></html>

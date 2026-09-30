@@ -1,0 +1,33 @@
+<h1>How envcheck works</h1>
+<p>One file, checked from start to finish.</p>
+
+<section class="step">
+  <div class="num">1</div>
+  <h2>You write the schema</h2>
+  <p>One line per variable the app needs.</p>
+  <pre><code>PORT: {type: int, default: 8080}
+DATABASE_URL: {type: url, required: true}</code></pre>
+</section>
+
+<section class="step">
+  <div class="num">2</div>
+  <h2>It reads your file</h2>
+  <p>The <code>.env</code> file is read, never changed.</p>
+  <pre><code>PORT=eighty</code></pre>
+</section>
+
+<section class="step">
+  <div class="num">3</div>
+  <h2>It checks every variable</h2>
+  <p>Each schema line is one check. All results are collected first.</p>
+  <pre><code>PORT          type int     "eighty"   fail
+DATABASE_URL  required     missing    fail</code></pre>
+</section>
+
+<section class="step">
+  <div class="num">4</div>
+  <h2>You get every problem at once</h2>
+  <pre><code>✗ DATABASE_URL is required but missing
+✗ PORT must be an int, got "eighty"
+2 problems</code></pre>
+</section>

@@ -1,0 +1,11 @@
+{
+  "name": "envcheck",
+  "tagline": "Check a .env file against a schema before it reaches production. An example design, written with satl-design-spec.",
+  "spec": "",
+  "start": ["why.html", "how-it-works.html", "cookbook.html"],
+  "groups": [
+    {"name": "The schema", "color": "cobalt"},
+    {"name": "Checking", "color": "jade"},
+    {"name": "In CI", "color": "ochre"}
+  ]
+}

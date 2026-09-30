@@ -16,6 +16,7 @@ tasks:
     cmds:
       - bash satl-project-memory/test.sh
       - bash satl-agent-messaging/test.sh
+      - bash satl-design-spec/test.sh
       - bash satl-spec-promises/test.sh
 
   lint:

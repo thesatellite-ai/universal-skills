@@ -1,0 +1,201 @@
+/* design-spec site style — quiet, compact, neutral. Copied into a project
+   by `design-spec init` (or on first build) and then owned by the project.
+   Tailwind handles page layout; this file holds the tokens, the overview
+   tiles, the detail drawer, rendered markdown, and the diagram helpers.
+   Colour is used only as small group dots and accents, never as fill. */
+
+:root {
+  --bg: #fafafa; --surface: #ffffff; --ink: #171717; --soft: #6b6b6b; --faint: #a3a3a3; --line: #e8e8e8; --line-strong: #d4d4d4;
+  --link: #171717; --hover: #f4f4f5; --code-inline: #f2f2f2; --panel: #fafafa; --panel-ink: #262626; --panel-soft: #8a8a8a;
+  /* group dots and diagram accents */
+  --cobalt: #3b63d6; --jade: #1f8a63; --ochre: #c48a16; --oxblood: #c2413c; --slate: #71717a; --violet: #7c5cd6; --teal: #1b8a93;
+  --cobalt-tint: #f1f4fd; --jade-tint: #eff8f4; --ochre-tint: #fbf6ea; --oxblood-tint: #fcf1f1; --slate-tint: #f4f4f5;
+  --cobalt-text: #2f52b8; --jade-text: #1a7454; --ochre-text: #8f6410; --oxblood-text: #a8322e; --slate-text: #52525b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0a0a; --surface: #111111; --ink: #ededed; --soft: #9a9a9a; --faint: #5c5c5c; --line: #222222; --line-strong: #333333;
+    --link: #ededed; --hover: #1a1a1a; --code-inline: #1c1c1c; --panel: #111111; --panel-ink: #e5e5e5; --panel-soft: #7a7a7a;
+    --cobalt-tint: #121a2e; --jade-tint: #0f1f19; --ochre-tint: #211a0b; --oxblood-tint: #231212; --slate-tint: #18181b;
+    --cobalt-text: #8aa6f5; --jade-text: #5fc79c; --ochre-text: #e0b04e; --oxblood-text: #ef8a86; --slate-text: #a1a1aa;
+  }
+}
+
+html { scroll-padding-top: 64px; -webkit-font-smoothing: antialiased }
+body { font-size: 15px; line-height: 1.6 }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important } }
+
+/* ── top bar ─────────────────────────────────────────────────────────── */
+.topbar { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line) }
+.topbar > div { height: 48px }
+.navlink { padding: 4px 9px; border-radius: 6px; font-size: 13.5px; font-weight: 500; color: var(--soft); white-space: nowrap; text-decoration: none; transition: color .12s, background .12s }
+.navlink:hover { color: var(--ink) }
+.navlink.is-on { color: var(--ink); background: var(--hover) }
+
+/* ── feature index ───────────────────────────────────────────────────── */
+.group-h { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin: 0 0 8px }
+.group-n { font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums }
+.dot { width: 7px; height: 7px; border-radius: 2px; flex: none; display: inline-block }
+.dot-cobalt { background: var(--cobalt) } .dot-jade { background: var(--jade) } .dot-ochre { background: var(--ochre) } .dot-oxblood { background: var(--oxblood) } .dot-slate { background: var(--slate) } .dot-violet { background: var(--violet) } .dot-teal { background: var(--teal) }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden }
+.tile { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 11px 14px 12px; cursor: pointer; background: transparent; box-shadow: inset -1px -1px 0 var(--line); transition: background .12s }
+.tile:hover { background: var(--hover) }
+.tile:focus-visible { outline-offset: -2px }
+.tile-name { font-size: 14px; font-weight: 600; color: var(--ink); letter-spacing: -.005em }
+.tile-line { font-size: 12.5px; line-height: 1.45; color: var(--soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+
+/* ── detail drawer ───────────────────────────────────────────────────── */
+.drawer { position: fixed; inset: 0 0 0 auto; margin: 0; height: 100vh; max-height: 100vh; width: min(640px, 100vw); border: 0; border-left: 1px solid var(--line); padding: 0; background: var(--surface); color: var(--ink); box-shadow: -24px 0 60px -30px rgb(0 0 0 / .25); overflow-y: auto }
+.drawer::backdrop { background: rgb(0 0 0 / .18) }
+.drawer[open] { animation: slide .18s cubic-bezier(.2, .7, .2, 1) }
+@keyframes slide { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+.d-inner { position: relative; padding: 22px 26px 28px }
+@media (max-width: 600px) { .d-inner { padding: 18px 16px } }
+.d-close { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 6px; font-size: 20px; line-height: 1; color: var(--soft) }
+.d-close:hover { background: var(--hover); color: var(--ink) }
+.d-group { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; color: var(--soft); margin: 0 }
+.d-title { font-weight: 600; font-size: 22px; letter-spacing: -.015em; line-height: 1.2; margin: 6px 40px 16px 0 }
+.d-pf { display: grid; gap: 12px; margin: 0 0 18px; padding: 0 0 18px; border-bottom: 1px solid var(--line) }
+.d-pf dt { font-size: 12.5px; font-weight: 500; color: var(--soft); margin-bottom: 1px }
+.d-pf dd { margin: 0; font-size: 14.5px; line-height: 1.55 }
+.d-more { margin: 16px 0 0; font-size: 13.5px; font-weight: 500 }
+.d-more a, .d-pf a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px }
+.d-more a:hover { text-decoration-color: var(--ink) }
+.drawer .pair { grid-template-columns: 1fr }
+
+/* ── rendered markdown ───────────────────────────────────────────────── */
+.prose { font-size: 15px; line-height: 1.65; color: var(--ink) }
+.prose a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px }
+.prose a:hover { text-decoration-color: var(--ink) }
+.prose h1 { font-size: 28px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 8px }
+.prose h1 + p { font-size: 16px; color: var(--soft); margin-bottom: 20px }
+.prose h2 { font-size: 19px; font-weight: 600; letter-spacing: -.012em; line-height: 1.3; margin: 44px 0 8px; padding-top: 24px; border-top: 1px solid var(--line) }
+.prose h3 { font-size: 15.5px; font-weight: 600; margin: 24px 0 4px }
+.prose p { margin: 0 0 12px }
+.prose ul, .prose ol { margin: 0 0 14px; padding-left: 20px }
+.prose ul { list-style: disc } .prose ol { list-style: decimal }
+.prose li { margin: 3px 0 }
+.prose li::marker { color: var(--faint) }
+.prose strong { font-weight: 600 }
+.prose code, .d-pf code, .tile code { font-family: "Geist Mono", ui-monospace, monospace; font-size: .86em; background: var(--code-inline); padding: 1px 4px; border-radius: 4px }
+.prose h2 code, .prose h3 code { font-size: .82em }
+
+.code { margin: 0 0 12px; min-width: 0 }
+.fname { font: 500 12px "Geist Mono", ui-monospace, monospace; color: var(--soft); margin: 0 0 4px }
+.prose pre, .drawer pre { margin: 0; background: var(--panel); color: var(--panel-ink); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; overflow-x: auto; font: 12.5px/1.6 "Geist Mono", ui-monospace, monospace }
+.prose pre code, .drawer pre code { background: none; padding: 0; font-size: inherit; color: inherit }
+
+.pair, .files { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 2px }
+.pair > *, .file { min-width: 0 }
+.pair pre, .files pre { white-space: pre-wrap; overflow-wrap: anywhere }
+@media (max-width: 720px) { .pair, .files { grid-template-columns: 1fr } }
+
+.callout { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 14px; margin: 0 0 16px; font-size: 14px }
+.callout-title { display: flex; align-items: center; gap: 7px; font-weight: 600; margin: 0 0 2px !important }
+.callout-title::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--cobalt) }
+.callout > :last-child { margin-bottom: 0 }
+.callout.tip .callout-title::before { background: var(--jade) }
+.callout.warn .callout-title::before { background: var(--ochre) }
+.callout.danger .callout-title::before { background: var(--oxblood) }
+blockquote { margin: 0 0 14px; padding: 0 14px; border-left: 2px solid var(--line); color: var(--soft) }
+
+.tw { overflow-x: auto; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface) }
+.prose table { border-collapse: collapse; width: 100%; font-size: 13.5px }
+.prose th, .prose td { text-align: left; vertical-align: top; padding: 7px 12px; border-bottom: 1px solid var(--line) }
+.prose tr:last-child td { border-bottom: 0 }
+.prose th { font-weight: 500; color: var(--soft); background: var(--bg) }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden }
+.cards.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.cards.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+@media (max-width: 720px) { .cards.c2, .cards.c3 { grid-template-columns: 1fr } }
+.cards .item { padding: 13px 15px; box-shadow: inset -1px -1px 0 var(--line) }
+.prose .cards .item h3 { margin: 0 0 3px; font-size: 14px }
+.cards .item p { margin: 0; font-size: 13.5px; color: var(--soft); line-height: 1.5 }
+
+/* contents list */
+.toc { position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 92px); overflow-y: auto; font-size: 13px }
+.toc-h { font-weight: 500; color: var(--soft); margin: 0 0 6px }
+.toc a { display: block; color: var(--soft); text-decoration: none; padding: 3px 0; line-height: 1.4 }
+.toc a:hover { color: var(--ink) }
+.toc code { font-size: .92em; background: none; padding: 0 }
+@media (max-width: 1023px) { .toc { position: static; max-height: none } }
+
+/* ── how it works ────────────────────────────────────────────────────── */
+.c { background: var(--ochre-tint); color: var(--ochre-text); border-radius: 3px; padding: 0 2px; font-weight: 500 }
+.p { background: var(--cobalt-tint); color: var(--cobalt-text); border-radius: 3px; padding: 0 2px; font-weight: 500 }
+.dim { color: var(--soft) } .prose pre .dim { color: var(--panel-soft) }
+.key { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--soft); margin: 12px 0 32px }
+.key span { display: inline-flex; align-items: center; gap: 6px }
+.sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block }
+.step { position: relative; padding: 0 0 34px 42px }
+.step::before { content: ""; position: absolute; left: 11px; top: 30px; bottom: 4px; width: 1px; background: var(--line-strong) }
+.step:last-of-type::before { display: none }
+.num { position: absolute; left: 0; top: 0; width: 23px; height: 23px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); display: grid; place-items: center; font-size: 12px; font-weight: 600 }
+.prose .step h2 { font-size: 16px; margin: 0 0 4px; padding: 0; border: 0 }
+.out { border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #171717; padding: 14px 16px }
+.out h3 { margin: 0 0 8px; font-size: 20px }
+.demo-card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; max-width: 260px }
+.demo-card h4 { margin: 0 0 2px; font-weight: 600 }
+.why { margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px }
+.prose .why h2 { font-size: 16px; margin: 0 0 6px; padding: 0; border: 0 }
+.bad { color: var(--oxblood-text); font-weight: 600 } .good { color: var(--jade-text); font-weight: 600 }
+.note { font-size: 12.5px; color: var(--soft); margin-top: 28px; border-top: 1px solid var(--line); padding-top: 12px }
+
+/* ── the picture ─────────────────────────────────────────────────────── */
+.zoom { display: block; font-size: 12.5px; font-weight: 500; color: var(--soft); margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line) }
+.prose .zoom + h2 { margin-top: 2px; padding-top: 0; border-top: 0 }
+.diagram { width: 100%; height: auto; display: block; margin: 8px 0 18px }
+.diagram text { font-family: "Geist", ui-sans-serif, sans-serif; fill: var(--ink) }
+.diagram .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1 }
+.diagram .core { fill: var(--surface); stroke: var(--ink); stroke-width: 1.5 }
+.diagram .host { fill: var(--bg); stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 3 }
+.diagram .line { stroke: var(--faint); stroke-width: 1.2; fill: none }
+.diagram .dash { stroke-dasharray: 4 3 }
+.diagram .t { font-size: 14px; font-weight: 600 }
+.diagram .s { font-size: 12px; fill: var(--soft) }
+.diagram .lbl { font-size: 12px; fill: var(--soft) }
+.arrowhead { fill: var(--faint) }
+.split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr } }
+.band { display: block; border-left: 2px solid transparent; padding: 0 8px; margin: 0 -8px }
+.b1 { border-color: var(--cobalt) } .b2 { border-color: #8b5cf6 } .b3 { border-color: var(--ochre) } .b4 { border-color: var(--jade) } .b5 { border-color: var(--oxblood) }
+.legend { list-style: none !important; padding: 0 !important; margin: 0 }
+.legend li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; margin: 0 0 12px; font-size: 14px }
+.legend i { width: 8px; height: 8px; border-radius: 2px; margin-top: 7px }
+.legend i.b1 { background: var(--cobalt) } .legend i.b2 { background: #8b5cf6 } .legend i.b3 { background: var(--ochre) } .legend i.b4 { background: var(--jade) } .legend i.b5 { background: var(--oxblood) }
+.legend b { display: block; font-weight: 600 }
+.phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0; margin: 6px 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden }
+.phase { padding: 12px 14px; box-shadow: inset -1px -1px 0 var(--line) }
+.phase .ph { font-size: 12px; font-weight: 500; color: var(--soft) }
+.prose .phase h3 { margin: 1px 0 4px; font-size: 14px }
+.phase p { margin: 0 !important; font-size: 12.5px; color: var(--soft); line-height: 1.5 }
+.phase.now .ph { color: var(--ink); font-weight: 600 }
+.phase.now .ph::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--jade); margin-right: 6px; vertical-align: 1px }
+.phase.maybe { opacity: .55 }
+
+/* ── reading aids ────────────────────────────────────────────────────── */
+.readtime { font-size: 12.5px; color: var(--faint); margin: -2px 0 18px !important }
+.next { display: flex; flex-direction: column; gap: 1px; margin-top: 48px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-decoration: none !important; color: var(--ink) !important; font-weight: 600; max-width: 320px; margin-left: auto }
+.next span { font-size: 12px; font-weight: 500; color: var(--soft) }
+.next:hover { border-color: var(--line-strong) }
+.start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 16px; font-size: 13.5px }
+.start-h { color: var(--soft) }
+.start ol { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0 }
+.start a { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 500 }
+.start a:hover { border-color: var(--line-strong) }
+.start-n { width: 18px; height: 18px; border-radius: 50%; background: var(--hover); display: grid; place-items: center; font-size: 11px; font-weight: 600 }
+.start-min { color: var(--faint); font-weight: 400 }
+
+/* ── diagram helper: boxes and arrows without SVG ────────────────────── */
+/* <div class="flow"><div class="node"><b>Title</b><span>detail</span></div><div class="arrow"></div>…</div>
+   Add class "core" to the one node that matters most. */
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 10px 0 18px }
+.flow .node { flex: 1 1 120px; display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); font-size: 13px; line-height: 1.35 }
+.flow .node b { font-weight: 600; font-size: 13.5px }
+.flow .node span { color: var(--soft) }
+.flow .node.core { border: 1.5px solid var(--ink) }
+.flow .arrow { flex: none; align-self: center; width: 14px; height: 1px; background: var(--faint); position: relative }
+.flow .arrow::after { content: ""; position: absolute; right: -1px; top: -3px; border: 3.5px solid transparent; border-left: 5px solid var(--faint) }
+@media (max-width: 600px) { .flow { flex-direction: column } .flow .arrow { width: 1px; height: 12px; align-self: center } .flow .arrow::after { right: -3px; top: auto; bottom: -2px; border: 3.5px solid transparent; border-top: 5px solid var(--faint) } }

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>envcheck · How it works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme inline {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --color-mortar: var(--bg); --color-surface: var(--surface); --color-ink: var(--ink);
+  --color-soft: var(--soft); --color-faint: var(--faint); --color-line: var(--line);
+}
+</style>
+<link rel="stylesheet" href="style.css"></head>
+<body class="bg-mortar text-ink font-sans antialiased"><header class="topbar"><div class="mx-auto max-w-6xl px-4 sm:px-6 flex items-center gap-6"><a href="index.html" class="flex items-center gap-2 font-semibold text-[15px] tracking-tight shrink-0"><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true" fill="currentColor"><rect x="0" y="0" width="9.5" height="5.5" rx="1"/><rect x="10.5" y="0" width="5.5" height="5.5" rx="1"/><rect x="0" y="6.5" width="4.5" height="5.5" rx="1"/><rect x="5.5" y="6.5" width="10.5" height="5.5" rx="1"/></svg>envcheck</a><nav class="flex gap-1 overflow-x-auto min-w-0" aria-label="Site"><a href="index.html" class="navlink">Overview</a><a href="why.html" class="navlink">Why</a><a href="picture.html" class="navlink">Picture</a><a href="how-it-works.html" class="navlink is-on" aria-current=page>How it works</a><a href="guide.html" class="navlink">Guide</a><a href="cookbook.html" class="navlink">Cookbook</a><a href="decisions.html" class="navlink">Decisions</a></nav></div></header><div class="mx-auto max-w-[760px] px-4 sm:px-6 py-10"><main class="prose"><h1>How envcheck works</h1><p class="readtime">1 min read</p>
+<p>One file, checked from start to finish.</p>
+
+<section class="step">
+  <div class="num">1</div>
+  <h2>You write the schema</h2>
+  <p>One line per variable the app needs.</p>
+  <pre><code>PORT: {type: int, default: 8080}
+DATABASE_URL: {type: url, required: true}</code></pre>
+</section>
+
+<section class="step">
+  <div class="num">2</div>
+  <h2>It reads your file</h2>
+  <p>The <code>.env</code> file is read, never changed.</p>
+  <pre><code>PORT=eighty</code></pre>
+</section>
+
+<section class="step">
+  <div class="num">3</div>
+  <h2>It checks every variable</h2>
+  <p>Each schema line is one check. All results are collected first.</p>
+  <pre><code>PORT          type int     "eighty"   fail
+DATABASE_URL  required     missing    fail</code></pre>
+</section>
+
+<section class="step">
+  <div class="num">4</div>
+  <h2>You get every problem at once</h2>
+  <pre><code>✗ DATABASE_URL is required but missing
+✗ PORT must be an int, got "eighty"
+2 problems</code></pre>
+</section>
+<a class="next" href="guide.html"><span>Next</span>Guide</a></main></div><footer class="border-t border-line py-6 text-center text-xs text-soft">Generated from <code>src/how-it-works.html</code> by design-spec. Edit the source, then rebuild.</footer></body></html>

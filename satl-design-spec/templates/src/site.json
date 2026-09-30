@@ -1,0 +1,10 @@
+{
+  "name": "{{NAME}}",
+  "tagline": "{{TAGLINE}}",
+  "spec": "",
+  "start": ["why.html", "how-it-works.html"],
+  "groups": [
+    {"name": "TODO: first group", "color": "cobalt"},
+    {"name": "TODO: second group", "color": "jade"}
+  ]
+}

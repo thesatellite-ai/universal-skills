@@ -1,0 +1,579 @@
+#!/usr/bin/env python3
+"""design-spec — build a readable design site from a folder of sources.
+
+A design lives in DIR/src/ as a few short files, one per question a reader
+asks; this tool turns them into a small static site in DIR/ that someone
+can read in order, or scan all at once from its front page.
+
+  src/site.json          name, tagline, groups (required)
+  src/guide.md           every feature: problem, fix, example (required);
+                         it also GENERATES the front page, one tile per feature
+  src/why.md             who it is for and why it exists
+  src/picture.html       diagrams: the system at a few zoom levels, roadmap
+  src/how-it-works.html  one example followed step by step
+  src/cookbook.md        real tasks, every file in full, plus the exact output
+  src/rules.md           exact behaviour for edge cases, one short entry each (optional)
+  src/decisions.md       what was decided, by whom, and what was rejected
+
+Pages whose source is missing are left out of the site and its menu.
+
+Commands:
+  design-spec init  DIR --name NAME [--tagline T]   scaffold DIR/src from the templates
+  design-spec build DIR                            write DIR/*.html
+  design-spec check DIR [--json]                   report what is missing; exit 1 if anything is
+
+Why the front page is generated from the guide: the overview and the detail
+can then never disagree. Each `## section` of guide.md with a
+`<!-- group: Name -->` comment above it becomes a tile in that group;
+`<!-- group: none -->` keeps a section (an intro, a roadmap note) in the
+guide but off the overview, on purpose.
+
+Stdlib only (python 3.9+). The pages load Tailwind's browser build and two
+Google fonts from a CDN; offline they still read, just unstyled.
+"""
+
+from __future__ import annotations
+
+import argparse
+import html
+import json
+import math
+import re
+import shutil
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+SKILL = Path(__file__).resolve().parent
+TEMPLATES = SKILL / "templates"
+
+# Every page the site can have, in reading order: (output, source, menu label).
+# The front page is always the feature overview generated from guide.md.
+PAGES = [
+    ("why.html", "why.md", "Why"),
+    ("picture.html", "picture.html", "Picture"),
+    ("how-it-works.html", "how-it-works.html", "How it works"),
+    ("guide.html", "guide.md", "Guide"),
+    ("cookbook.html", "cookbook.md", "Cookbook"),
+    ("rules.html", "rules.md", "Rules"),
+    ("decisions.html", "decisions.md", "Decisions"),
+]
+# Group dot colours site.json may name. Kept small on purpose: colour marks
+# a group, it never fills a surface.
+COLORS = ("cobalt", "jade", "ochre", "oxblood", "slate", "violet", "teal")
+CALLOUT_KINDS = ("tip", "note", "warn", "danger")
+WORDS_PER_MINUTE = 200  # reading speed behind the "N min read" labels
+FENCE = re.compile(r"^(```|~~~)(.*)$")
+GROUP = re.compile(r"^<!--\s*group:\s*(.+?)\s*-->$")
+NO_GROUP = "none"  # the group name that means "in the guide, not on the overview"
+TODO = re.compile(r"\bTODO\b")
+
+
+# ── markdown ────────────────────────────────────────────────────────────────
+
+
+def slug(text: str) -> str:
+    text = re.sub(r"<[^>]+>|`", "", text).lower()
+    text = re.sub(r"[^\w\s-]", "", text).strip()
+    return re.sub(r"[\s_]+", "-", text)
+
+
+def inline(text: str) -> str:
+    codes: list[str] = []
+
+    def stash(m: re.Match[str]) -> str:
+        codes.append(f"<code>{html.escape(m.group(1))}</code>")
+        return f"\x00{len(codes) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", stash, text)
+    text = html.escape(text, quote=False)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", text)
+
+    def link(m: re.Match[str]) -> str:
+        href = html.unescape(m.group(2))
+        if href.lower().startswith(("javascript:", "data:", "vbscript:")):
+            return m.group(1)
+        return f'<a href="{html.escape(href, quote=True)}">{m.group(1)}</a>'
+
+    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", link, text)
+    return re.sub(r"\x00(\d+)\x00", lambda m: codes[int(m.group(1))], text)
+
+
+def render(lines: list[str], toc: list[tuple[str, str]] | None = None) -> str:
+    """The small markdown subset these docs use; see SKILL.md, "The format"."""
+    toc = toc if toc is not None else []
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        fence = FENCE.match(line)
+        if fence:
+            title = re.search(r'title="([^"]+)"', fence.group(2))
+            body: list[str] = []
+            i += 1
+            while i < len(lines) and not FENCE.match(lines[i]):
+                body.append(lines[i])
+                i += 1
+            i += 1
+            head = f'<div class="fname">{html.escape(title.group(1))}</div>' if title else ""
+            out.append(f'<div class="code">{head}<pre><code>{html.escape(chr(10).join(body))}</code></pre></div>')
+            continue
+        stripped = line.strip()
+        if stripped.startswith("<!--") and stripped.endswith("-->"):
+            i += 1
+            continue
+        if line.startswith("::: "):
+            kind = line[4:].strip()
+            depth, inner = 1, []
+            i += 1
+            while i < len(lines):
+                if lines[i].startswith("::: "):
+                    depth += 1
+                elif lines[i].strip() == ":::":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                inner.append(lines[i])
+                i += 1
+            i += 1
+            out.append(f'<div class="{html.escape(kind)}">{render(inner, toc)}</div>')
+            continue
+        m = re.match(r"^(#{1,3}) (.+)$", line)
+        if m:
+            level, text = len(m.group(1)), m.group(2).strip()
+            anchor = slug(text)
+            if level == 2:
+                toc.append((anchor, text))
+            out.append(f'<h{level} id="{anchor}">{inline(text)}</h{level}>')
+            i += 1
+            continue
+        if line.startswith(">"):
+            quoted = []
+            while i < len(lines) and lines[i].startswith(">"):
+                quoted.append(lines[i][1:].lstrip())
+                i += 1
+            cm = re.match(r"^\[!(\w+)\]\s*(.*)$", quoted[0])
+            if cm and cm.group(1).lower() in CALLOUT_KINDS:
+                kind, title = cm.group(1).lower(), cm.group(2)
+                head = f'<p class="callout-title">{inline(title)}</p>' if title else ""
+                out.append(f'<div class="callout {kind}">{head}{render(quoted[1:], toc)}</div>')
+            else:
+                out.append(f"<blockquote>{render(quoted, toc)}</blockquote>")
+            continue
+        if re.match(r"^\s*[-*] ", line) or re.match(r"^\s*\d+\. ", line):
+            ordered = bool(re.match(r"^\s*\d+\. ", line))
+            pat = r"^\s*\d+\. " if ordered else r"^\s*[-*] "
+            items = []
+            while i < len(lines) and re.match(pat, lines[i]):
+                items.append(f"<li>{inline(re.sub(pat, '', lines[i]))}</li>")
+                i += 1
+            tag = "ol" if ordered else "ul"
+            out.append(f"<{tag}>{''.join(items)}</{tag}>")
+            continue
+        if stripped.startswith("|"):
+            rows = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+                if not all(re.fullmatch(r":?-+:?", c) for c in cells):
+                    tag = "th" if not rows else "td"
+                    rows.append("<tr>" + "".join(f"<{tag}>{inline(c)}</{tag}>" for c in cells) + "</tr>")
+                i += 1
+            out.append(f'<div class="tw"><table>{"".join(rows)}</table></div>')
+            continue
+        if stripped:
+            para = []
+            while i < len(lines) and lines[i].strip() and not re.match(r"^(#{1,3} |>|:::|<!--|\s*[-*] |\s*\d+\. |\s*\|)", lines[i]) and not FENCE.match(lines[i]):
+                para.append(lines[i].strip())
+                i += 1
+            out.append(f"<p>{inline(' '.join(para))}</p>")
+            continue
+        i += 1
+    return "".join(out)
+
+
+def minutes(text: str) -> int:
+    words = len(re.findall(r"\w+", re.sub(r"<[^>]+>", " ", text)))
+    return max(1, math.ceil(words / WORDS_PER_MINUTE))
+
+
+# ── the site ────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class Site:
+    root: Path
+    name: str
+    tagline: str
+    groups: dict[str, str]  # group name -> colour, in display order
+    spec: str  # optional link to a long-form spec, shown last in the menu
+    start: list[str]  # pages suggested as the reading path on the front page
+
+    @property
+    def src(self) -> Path:
+        return self.root / "src"
+
+
+def load(root: Path) -> Site:
+    cfg_path = root / "src" / "site.json"
+    if not cfg_path.is_file():
+        raise SystemExit(f"design-spec: {cfg_path} not found (run `design-spec init {root} --name NAME`)")
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"design-spec: {cfg_path}: {e}")
+    groups: dict[str, str] = {}
+    for g in cfg.get("groups", []):
+        colour = g.get("color", "slate")
+        if colour not in COLORS:
+            raise SystemExit(f"design-spec: group {g.get('name')!r} has color {colour!r}; use one of {', '.join(COLORS)}")
+        groups[g["name"]] = colour
+    start = cfg.get("start", ["why.html", "how-it-works.html"])
+    return Site(root, cfg.get("name", root.name), cfg.get("tagline", ""), groups, cfg.get("spec", ""), start)
+
+
+@dataclass
+class Feature:
+    """One guide section, seen as a tile on the front page."""
+
+    title: str
+    anchor: str
+    group: str
+    line: int
+    lines: list[str] = field(default_factory=list)
+
+    @property
+    def name(self) -> str:
+        # "Scoped slots — let the page draw each row" → "Scoped slots"
+        return re.sub(r"`", "", self.title.split(" — ")[0]).strip()
+
+    def labelled(self, label: str) -> str:
+        """The text after a **Label:** marker, as one line, or ''."""
+        for ln in self.lines:
+            m = re.match(rf"^\*\*{label}:\*\*\s*(.+)$", ln.strip())
+            if m:
+                return m.group(1)
+        return ""
+
+    def example(self) -> list[str]:
+        """The first ::: pair block, else the first fenced block."""
+        for i, ln in enumerate(self.lines):
+            if ln.startswith("::: pair"):
+                depth, j = 1, i + 1
+                while j < len(self.lines):
+                    if self.lines[j].startswith("::: "):
+                        depth += 1
+                    elif self.lines[j].strip() == ":::":
+                        depth -= 1
+                        if depth == 0:
+                            return self.lines[i : j + 1]
+                    j += 1
+            if FENCE.match(ln):
+                j = i + 1
+                while j < len(self.lines) and not FENCE.match(self.lines[j]):
+                    j += 1
+                return self.lines[i : j + 1]
+        return []
+
+
+def features(lines: list[str]) -> list[Feature]:
+    out: list[Feature] = []
+    group: str | None = None
+    cur: Feature | None = None
+    in_fence = False
+    for n, ln in enumerate(lines, 1):
+        if FENCE.match(ln):
+            in_fence = not in_fence
+        if not in_fence:
+            g = GROUP.match(ln.strip())
+            if g:
+                group = g.group(1)
+                continue
+            if ln.startswith("## "):
+                title = ln[3:].strip()
+                cur = Feature(title, slug(title), group, n) if group and group != NO_GROUP else None
+                if cur:
+                    out.append(cur)
+                group = None
+                continue
+        if cur:
+            cur.lines.append(ln)
+    return out
+
+
+def cap(text: str) -> str:
+    """Upper-case the first letter; guides write these lines mid-sentence."""
+    return text[:1].upper() + text[1:]
+
+
+def plain(text: str) -> str:
+    """Markdown to escaped text with no tags: safe to drop straight into HTML."""
+    return re.sub(r"<[^>]+>", "", inline(text))
+
+
+def present(site: Site) -> list[tuple[str, str, str]]:
+    return [(out, src, label) for out, src, label in PAGES if (site.src / src).is_file()]
+
+
+def front(site: Site, feats: list[Feature], pages: list[tuple[str, str, str]], mins: dict[str, int]) -> str:
+    groups_html, templates = [], []
+    for n, (group, colour) in enumerate(site.groups.items()):
+        row = [f for f in feats if f.group == group]
+        if not row:
+            continue
+        tiles = []
+        for f in row:
+            # The problem line says what the feature is for, which reads on its
+            # own; the fix line often leans on it ("two things.").
+            tiles.append(
+                f'<button type="button" class="tile" data-feature="{f.anchor}" aria-haspopup="dialog">'
+                f'<span class="tile-name">{html.escape(f.name)}</span>'
+                f'<span class="tile-line">{cap(plain(f.labelled("The problem")))}</span></button>'
+            )
+            templates.append(
+                f'<template id="t-{f.anchor}"><p class="d-group"><i class="dot dot-{colour}"></i>{html.escape(group)}</p>'
+                f'<h2 class="d-title" id="d-title">{inline(f.name)}</h2>'
+                f'<dl class="d-pf"><div><dt>The problem</dt><dd>{inline(cap(f.labelled("The problem")))}</dd></div>'
+                f'<div><dt>The fix</dt><dd>{inline(cap(f.labelled("The fix")))}</dd></div></dl>'
+                f'<div class="prose">{render(f.example())}</div>'
+                f'<p class="d-more"><a href="guide.html#{f.anchor}">Read the whole section in the guide</a></p></template>'
+            )
+        groups_html.append(
+            f'<section aria-labelledby="g-{n}"><h2 id="g-{n}" class="group-h"><i class="dot dot-{colour}"></i>'
+            f'{html.escape(group)}<span class="group-n">{len(row)}</span></h2><div class="tiles">{"".join(tiles)}</div></section>'
+        )
+    labels = {out: label for out, _, label in pages}
+    path = [p for p in site.start if p in labels]
+    start = ""
+    if path:
+        steps = "".join(
+            f'<li><a href="{p}"><span class="start-n">{k}</span>{html.escape(labels[p])}<span class="start-min">{mins.get(p, 1)} min</span></a></li>'
+            for k, p in enumerate(path, 1)
+        )
+        start = f'<nav class="start" aria-label="Reading path"><span class="start-h">New here? Read these first</span><ol>{steps}</ol></nav>'
+    count = sum(1 for g in site.groups if any(f.group == g for f in feats))
+    return f"""
+<section class="mx-auto max-w-6xl px-4 sm:px-6 pt-10 pb-6">
+  <h1 class="text-2xl font-semibold tracking-tight">{html.escape(site.name)}</h1>
+  <p class="mt-1.5 text-[15px] text-soft max-w-2xl">{html.escape(site.tagline)}</p>
+  <p class="mt-1 text-[13.5px] text-faint">{len(feats)} features in {count} groups. Select one for the problem it solves and an example.</p>
+  {start}
+</section>
+<div class="mx-auto max-w-6xl px-4 sm:px-6 pb-16 grid gap-6">{"".join(groups_html)}</div>
+<dialog id="detail" class="drawer" aria-labelledby="d-title">
+  <div class="d-inner"><button type="button" class="d-close" aria-label="Close" data-close>&times;</button><div id="d-body"></div></div>
+</dialog>
+{"".join(templates)}
+<script>
+const dlg = document.getElementById("detail"), body = document.getElementById("d-body");
+function openFeature(id) {{
+  const t = document.getElementById("t-" + id); if (!t) return;
+  body.replaceChildren(t.content.cloneNode(true));
+  dlg.showModal(); dlg.scrollTop = 0; history.replaceState(null, "", "#" + id);
+}}
+document.querySelectorAll("[data-feature]").forEach(b => b.addEventListener("click", () => openFeature(b.dataset.feature)));
+dlg.addEventListener("click", e => {{ if (e.target === dlg || e.target.closest("[data-close]")) dlg.close(); }});
+dlg.addEventListener("close", () => history.replaceState(null, "", location.pathname));
+if (location.hash) openFeature(location.hash.slice(1));
+</script>"""
+
+
+HEAD = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme inline {{
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --color-mortar: var(--bg); --color-surface: var(--surface); --color-ink: var(--ink);
+  --color-soft: var(--soft); --color-faint: var(--faint); --color-line: var(--line);
+}}
+</style>
+<link rel="stylesheet" href="style.css"></head>
+<body class="bg-mortar text-ink font-sans antialiased">"""
+
+MARK = """<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true" fill="currentColor"><rect x="0" y="0" width="9.5" height="5.5" rx="1"/><rect x="10.5" y="0" width="5.5" height="5.5" rx="1"/><rect x="0" y="6.5" width="4.5" height="5.5" rx="1"/><rect x="5.5" y="6.5" width="10.5" height="5.5" rx="1"/></svg>"""
+
+
+def chrome(site: Site, current: str, pages: list[tuple[str, str, str]]) -> str:
+    items = [("index.html", "Overview")] + [(o, l) for o, _, l in pages]
+    if site.spec:
+        items.append((site.spec, "Full spec"))
+    links = "".join(
+        f'<a href="{html.escape(h)}" class="navlink{" is-on" if h == current else ""}"'
+        f'{" aria-current=page" if h == current else ""}>{html.escape(l)}</a>'
+        for h, l in items
+    )
+    return (
+        '<header class="topbar"><div class="mx-auto max-w-6xl px-4 sm:px-6 flex items-center gap-6">'
+        f'<a href="index.html" class="flex items-center gap-2 font-semibold text-[15px] tracking-tight shrink-0">{MARK}{html.escape(site.name)}</a>'
+        f'<nav class="flex gap-1 overflow-x-auto min-w-0" aria-label="Site">{links}</nav></div></header>'
+    )
+
+
+def doc_page(body: str, toc: list[tuple[str, str]], mins: int, nxt: tuple[str, str] | None) -> str:
+    # The reading time goes right under the page's first heading.
+    body = re.sub(r"(</h1>)", rf'\1<p class="readtime">{mins} min read</p>', body, count=1)
+    if nxt:
+        body += f'<a class="next" href="{nxt[0]}"><span>Next</span>{html.escape(nxt[1])}</a>'
+    if len(toc) > 3:
+        items = "".join(f'<li><a href="#{a}">{inline(t)}</a></li>' for a, t in toc)
+        side = f'<aside class="toc" aria-label="On this page"><p class="toc-h">On this page</p><ol>{items}</ol></aside>'
+        return f'<div class="mx-auto max-w-6xl px-4 sm:px-6 py-10 grid gap-10 lg:grid-cols-[190px_minmax(0,1fr)]">{side}<main class="prose min-w-0 max-w-[720px]">{body}</main></div>'
+    return f'<div class="mx-auto max-w-[760px] px-4 sm:px-6 py-10"><main class="prose">{body}</main></div>'
+
+
+def build(root: Path) -> list[str]:
+    site = load(root)
+    guide = site.src / "guide.md"
+    if not guide.is_file():
+        raise SystemExit(f"design-spec: {guide} not found; the guide is required, it generates the front page")
+    style = root / "style.css"
+    if not style.exists():
+        shutil.copy(TEMPLATES / "style.css", style)
+    pages = present(site)
+    bodies: dict[str, tuple[str, list[tuple[str, str]]]] = {}
+    for out, src, _ in pages:
+        text = (site.src / src).read_text(encoding="utf-8")
+        toc: list[tuple[str, str]] = []
+        if src.endswith(".md"):
+            body = render(text.splitlines(), toc)
+        else:
+            body = text
+            toc = [(a, re.sub(r"<[^>]+>", "", t)) for a, t in re.findall(r'<h2[^>]*id="([^"]+)"[^>]*>(.*?)</h2>', text)]
+        bodies[out] = (body, toc)
+    mins = {out: minutes(b) for out, (b, _) in bodies.items()}
+    written: list[str] = []
+
+    def write(name: str, title: str, main_html: str, source: str) -> None:
+        foot = f'<footer class="border-t border-line py-6 text-center text-xs text-soft">Generated from <code>src/{html.escape(source)}</code> by design-spec. Edit the source, then rebuild.</footer>'
+        doc = HEAD.format(title=html.escape(title)) + chrome(site, name, pages) + main_html + foot + "</body></html>\n"
+        (root / name).write_text(doc, encoding="utf-8")
+        written.append(name)
+
+    for k, (out, src, label) in enumerate(pages):
+        body, toc = bodies[out]
+        nxt = (pages[k + 1][0], pages[k + 1][2]) if k + 1 < len(pages) else None
+        write(out, f"{site.name} · {label}", doc_page(body, toc, mins[out], nxt), src)
+    feats = features(guide.read_text(encoding="utf-8").splitlines())
+    write("index.html", f"{site.name} · Overview", front(site, feats, pages, mins), "guide.md")
+    return written
+
+
+# ── check ───────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class Problem:
+    file: str
+    line: int
+    message: str
+
+
+def check(root: Path) -> list[Problem]:
+    site = load(root)
+    probs: list[Problem] = []
+    guide = site.src / "guide.md"
+    if not guide.is_file():
+        return [Problem("src/guide.md", 0, "missing; the guide is required")]
+    if not site.groups:
+        probs.append(Problem("src/site.json", 0, "no groups; the front page has nothing to show"))
+    lines = guide.read_text(encoding="utf-8").splitlines()
+    feats = features(lines)
+    in_fence, tagged = False, False
+    for n, ln in enumerate(lines, 1):
+        if FENCE.match(ln):
+            in_fence = not in_fence
+        elif not in_fence and GROUP.match(ln.strip()):
+            tagged = True
+        elif not in_fence and ln.startswith("## "):
+            if not tagged:
+                probs.append(Problem("src/guide.md", n, f"`{ln[3:].strip()}` has no <!-- group: … --> comment above it (use `none` to leave it off the overview on purpose)"))
+            tagged = False
+    for f in feats:
+        if f.group not in site.groups:
+            probs.append(Problem("src/guide.md", f.line, f"`{f.name}` is in group `{f.group}`, which site.json does not list"))
+        for label in ("The problem", "The fix"):
+            if not f.labelled(label):
+                probs.append(Problem("src/guide.md", f.line, f"`{f.name}` has no **{label}:** line"))
+        if not f.example():
+            probs.append(Problem("src/guide.md", f.line, f"`{f.name}` has no example (a ::: pair block or a code block)"))
+    cook = site.src / "cookbook.md"
+    if cook.is_file():
+        recipes: list[list] = []
+        in_fence = False
+        for n, ln in enumerate(cook.read_text(encoding="utf-8").splitlines(), 1):
+            if FENCE.match(ln):
+                if not in_fence and recipes:
+                    recipes[-1][2] += 1
+                in_fence = not in_fence
+            elif not in_fence and ln.startswith("## "):
+                recipes.append([n, ln[3:].strip(), 0])
+        for n, title, blocks in recipes:
+            if blocks < 2:
+                probs.append(Problem("src/cookbook.md", n, f"recipe `{title}` needs at least two code blocks: the files you write and what you get"))
+    for _, src, _ in PAGES + [("", "site.json", "")]:
+        p = site.src / src
+        if p.is_file():
+            for n, ln in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+                if TODO.search(ln):
+                    probs.append(Problem(f"src/{src}", n, "TODO left in"))
+    return probs
+
+
+# ── init ────────────────────────────────────────────────────────────────────
+
+
+def init(root: Path, name: str, tagline: str) -> list[str]:
+    src = root / "src"
+    if src.exists() and any(src.iterdir()):
+        raise SystemExit(f"design-spec: {src} already has files; not overwriting")
+    src.mkdir(parents=True, exist_ok=True)
+    made = []
+    for t in sorted((TEMPLATES / "src").iterdir()):
+        text = t.read_text(encoding="utf-8").replace("{{NAME}}", name).replace("{{TAGLINE}}", tagline)
+        (src / t.name).write_text(text, encoding="utf-8")
+        made.append(f"src/{t.name}")
+    shutil.copy(TEMPLATES / "style.css", root / "style.css")
+    made.append("style.css")
+    return made
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="design-spec", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("init", help="scaffold DIR/src from the templates")
+    p.add_argument("dir")
+    p.add_argument("--name", required=True)
+    p.add_argument("--tagline", default="TODO: one sentence on what it is and who it is for.")
+    p = sub.add_parser("build", help="write DIR/*.html from DIR/src")
+    p.add_argument("dir")
+    p = sub.add_parser("check", help="report missing pieces; exit 1 if any")
+    p.add_argument("dir")
+    p.add_argument("--json", action="store_true")
+    args = ap.parse_args(argv)
+    root = Path(args.dir)
+
+    if args.cmd == "init":
+        for f in init(root, args.name, args.tagline):
+            print(f"wrote {root / f}")
+        return 0
+    if args.cmd == "build":
+        written = build(root)
+        print(f"wrote {len(written)} pages to {root}: {', '.join(written)}")
+        return 0
+    probs = check(root)
+    if args.json:
+        print(json.dumps({"ok": not probs, "problems": [p.__dict__ for p in probs]}, indent=2))
+    else:
+        for p in probs:
+            print(f"{p.file}:{p.line}: {p.message}")
+        print(f"{len(probs)} problem(s)", file=sys.stderr)
+    return 1 if probs else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
