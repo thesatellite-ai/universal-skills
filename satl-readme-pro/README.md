@@ -12,7 +12,7 @@ For a small open-source project, the README *is* the product's landing page, its
 - **SEO intro** — one keyword-dense paragraph naming the category and every integration the project works with.
 - **"Why <name>?" pitch** — the core wedge in one sharp paragraph, differentiator bullets, and a comparison table vs alternative *categories*.
 - **FAQ** — 6-8 question-shaped Q&As that match what people and AI actually ask (privacy, API keys, "how is this different from X", bloat). This is what wins featured snippets and AI-answer citations.
-- **TOC + keyword footer.**
+- **TOC.** No keyword footer, ever.
 
 …all while **preserving every existing section** (Install, Usage, Command reference, etc.). It augments; it never throws away content.
 

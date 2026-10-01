@@ -104,7 +104,7 @@ A set of skills that take a bare repo to a consistent, open-source-ready state, 
 |---|---|
 | [satl&#8209;ship&#8209;repo](satl-ship-repo/) | **Orchestrator.** Reads `brand.json` and runs the launch skills below in order (brand → readme → oss files → repo metadata → khanakia card). Use for the full pass; `init` writes the manifest, `status` audits what's done. |
 | [satl&#8209;brand&#8209;kit](satl-brand-kit/) | Generates the full visual identity from the manifest: glyph concepts + palettes, every icon variant (color/dark/light/mono), favicon set, wordmark, lockups, light+dark OG covers, and design tokens — from one generator script. |
-| [satl&#8209;readme&#8209;pro](satl-readme-pro/) | Turns a README into an SEO-ready landing page: logo header + badges, keyword-rich intro, "Why this?" pitch + comparison table, FAQ tuned for AI/Google, keyword footer — preserving every existing section. Delegates deep positioning to [satl&#8209;homepage&#8209;positioning](satl-homepage-positioning/). |
+| [satl&#8209;readme&#8209;pro](satl-readme-pro/) | Turns a README into an SEO-ready landing page: logo header + badges, keyword-rich intro, "Why this?" pitch + comparison table, FAQ tuned for AI/Google — preserving every existing section. Delegates deep positioning to [satl&#8209;homepage&#8209;positioning](satl-homepage-positioning/). |
 | [satl&#8209;oss&#8209;scaffold](satl-oss-scaffold/) | Scaffolds the OSS hygiene files filled from the manifest: LICENSE (Apache-2.0 default), CONTRIBUTING, CHANGELOG, CODE_OF_CONDUCT, SECURITY, `.github/` templates, FUNDING, `.editorconfig`, `.gitattributes`, `llms.txt`. |
 | [satl&#8209;repo&#8209;meta](satl-repo-meta/) | Sets GitHub discoverability metadata via `gh`: About description, topics, homepage; and preps the 1280×640 social-preview image. |
 
@@ -133,5 +133,3 @@ A set of skills that take a bare repo to a consistent, open-source-ready state, 
 - Skill directory + frontmatter `name` both use the `satl-` prefix.
 - One `SKILL.md` per skill; supporting files (and a `README.md`) allowed alongside it.
 - Skills are self-contained (no cross-skill imports).
-
-<sub>universal-skills — open-source agent skills / AI coding-assistant skills for Claude Code, Cursor, Codex, GitHub Copilot, Windsurf, Gemini, and Cline. Portable `SKILL.md` modules for prompt engineering, research synthesis, CLAUDE.md / AI context generation, brand kits, README SEO, and open-source repo launch. No runtime, no lock-in, install via skills.sh.</sub>

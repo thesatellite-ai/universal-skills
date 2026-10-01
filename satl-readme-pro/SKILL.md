@@ -4,8 +4,8 @@ description: >-
   Turn a repo README into a polished, SEO-ready, conversion-oriented landing
   page: centered logo header + shields badges, a keyword-rich intro, a "Why
   this?" pitch with a comparison table, a FAQ tuned for Google/AI Overviews, a
-  table of contents, and a keyword footer — while preserving every existing
-  section. Triggers when the user says: "update the README", "make the README
+  table of contents — while preserving every existing section. Never adds a
+  keyword footer. Triggers when the user says: "update the README", "make the README
   SEO-ready", "add the logo/badges to the README", "write the pitch / why-use-
   this section", "add a FAQ / comparison table", or "make the repo README look
   professional". Delegates deep positioning copy to satl-homepage-positioning /
@@ -28,7 +28,7 @@ Make a repo's README do three jobs at once: **look professional** (logo + badges
 
 ## Hard rule: preserve existing content (lossy-diff)
 
-Before writing, **enumerate the existing README's top-level sections**. Your output must contain every one of them (Install, Usage, Concepts, Command reference, Contributing, …) unless the user explicitly says to drop it. You are *augmenting*: adding a header, pitch, FAQ, TOC, and footer, and lightly tightening the intro. Re-running must be idempotent (don't double-add a header). This is the #1 way this skill fails — verify section parity at the end.
+Before writing, **enumerate the existing README's top-level sections**. Your output must contain every one of them (Install, Usage, Concepts, Command reference, Contributing, …) unless the user explicitly says to drop it. You are *augmenting*: adding a header, pitch, FAQ and TOC, and lightly tightening the intro. Re-running must be idempotent (don't double-add a header). This is the #1 way this skill fails — verify section parity at the end.
 
 ## Inputs (from brand.json)
 
@@ -62,7 +62,7 @@ Before writing, **enumerate the existing README's top-level sections**. Your out
 
 7. **## FAQ** — 6-8 Q&As phrased as the **exact questions people/AI ask** ("does it send my data to the cloud?", "does it need an API key?", "how is this different from doing X by hand?", "will it bloat my context/bundle?"). FAQ markup is what wins featured snippets and AI-answer citations. Bold the question, answer in 1-3 sentences.
 
-8. **Keyword footer** — a small `<sub>` line restating the category + integrations + "no cloud / open source", for the last bit of indexable keyword coverage.
+**Never add a keyword footer** — no `<sub>` line (or any other closing line) restating the category, integrations and "open source / no cloud" for search engines. It repeats the intro, reads as keyword stuffing to a human, and the owner has rejected it outright. If a README you are augmenting already has one, remove it and say so. The README ends with its last real section (usually License).
 
 ## SEO checklist (verify before done)
 
@@ -73,6 +73,7 @@ Before writing, **enumerate the existing README's top-level sections**. Your out
 - Comparison table present.
 - Internal/external links resolve (`repo`, releases, license).
 - Lossy-diff: all prior sections retained.
+- No keyword footer and no keyword-stuffed closing line.
 
 ## Markdown style
 
