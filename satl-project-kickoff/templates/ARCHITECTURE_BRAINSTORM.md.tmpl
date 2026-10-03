@@ -1,0 +1,59 @@
+---
+title: {{PROJECT}} architecture brainstorm
+date: {{TODAY}}
+---
+
+# Architecture brainstorm
+
+<DocStatus state="review" owner="{{OWNER_HANDLE}}" updated="{{TODAY}}"></DocStatus>
+
+This is the first design pass for `{{MODULE_PATH}}`. Each question lists the options with their trade-offs and ends with a recommendation. Nothing here is decided until the owner accepts it; an accepted answer moves into `docsi/decisions/` as an ADR. Pending decisions are tracked in lore under the mission "{{MISSION_TITLE}}", not in this file.
+
+It builds on the research docs and does not repeat them: [LANDSCAPE](../research/LANDSCAPE.md), [FEATURES](../research/FEATURES.md), [LOCAL_REFERENCES](../research/LOCAL_REFERENCES.md). Code snippets are signature sketches, not code to build.
+
+<Callout type="info" title="The one-paragraph version">
+
+{{The whole design in one paragraph: the layers, the core type, how capabilities and cross-cutting behaviour work, where data lives, how plugins extend it, and what proves it.}}
+
+</Callout>
+
+## Recommendations at a glance
+
+| # | Question | Recommendation | Confidence |
+|---|---|---|---|
+| Q1 | {{question}} | {{recommendation}} | High / Medium / **Owner decides** |
+
+## The picture
+
+```mermaid
+flowchart TB
+  {{layers and modules, app at the top, backends at the bottom}}
+```
+
+## Q1. {{Question}}
+
+{{Why this question matters, with the evidence from the research (cite section numbers).}}
+
+| Option | Shape | For | Against |
+|---|---|---|---|
+| A. {{name}} | {{seen in}} | {{for}} | {{against}} |
+| B. {{name}} | {{seen in}} | {{for}} | {{against}} |
+
+**Recommendation: {{X}}.** {{The reason, and what it fixes in the owner's earlier code.}}
+
+[Repeat per question. Questions every library kickoff should answer: how many layers and which are usable alone; interface vs concrete type for users; the minimal backend contract; capabilities (optional interfaces, report, start-up validation); middleware without losing capabilities; the single typed escape hatch; opening from config without global state; multi-instance management; the domain's URL/IO/delivery concerns; the data layer and where it lives (if the research docs disagree, show both positions here); the data model and its consistency rules; plugins and operations (from the template project); processing/derivatives if any; errors; observability; testing (fake with assertions, conformance suite proven by breaking, emulators, fuzzing, hostile corpus); module layout and naming; the first proof (replace a real module, never abstract first).]
+
+## Risks to watch
+
+<Callout type="warning" title="Where this design could go wrong">
+
+- **Scope creep is the default failure**; the first-proof rule is the guard.
+- **{{The riskiest idea}}** needs a spike before anything is built on it.
+- {{Domain-specific risks.}}
+
+</Callout>
+
+## Related
+
+- [MISSION.md](../../MISSION.md) for principles and scope.
+- {{Links to the research sections that back each question.}}

@@ -1,0 +1,41 @@
+# CLAUDE.md
+
+Guidance for agents working in `{{MODULE_PATH}}`. Read this first, then [MISSION.md](MISSION.md), then the research docs linked below.
+
+## What this project is
+
+{{ONE_PARAGRAPH: the goal, what other ecosystems have that this one lacks, and what this library is (core + adapters + modules, embeddable, batteries included).}}
+
+**Status ({{TODAY}}): exploration and brainstorm only. No code exists and none is to be written until the owner approves a design.** The current work is research and design docs; see "Read next".
+
+## Direction (working hypotheses, not decisions)
+
+These carry over from [{{TEMPLATE_PROJECT}}]({{TEMPLATE_CLAUDE_MD_LINK}}). Each is open until recorded in `docsi/decisions/`.
+
+- {{HYPOTHESIS: module split and the dependency guard}}
+- {{HYPOTHESIS: the layers and which ones need the database}}
+- {{HYPOTHESIS: how optional capabilities are expressed}}
+- {{HYPOTHESIS: how cross-cutting behaviour is added}}
+- {{HYPOTHESIS: how plugins extend it}}
+
+## Facts from the research that change defaults (checked {{TODAY}})
+
+{{Filled after Phase 2: deprecated SDK packages, archived dev servers, untagged dependencies, native-library traps, and the open questions with where they are tracked.}}
+
+## Read next
+
+- [MISSION.md](MISSION.md) — why this exists, who it is for, principles, scope, what "done" means.
+- [docsi/research/LANDSCAPE.md](docsi/research/LANDSCAPE.md) — every comparable library across ecosystems, with links, a feature matrix and the ideas worth stealing.
+- [docsi/research/FEATURES.md](docsi/research/FEATURES.md) — what real applications need, ranked P0 to P4, with a home for each feature.
+- [docsi/research/LOCAL_REFERENCES.md](docsi/research/LOCAL_REFERENCES.md) — the owner's earlier code and the template project's patterns.
+- **lore** (`.lore/`) — every task, open decision and mission. `lore task list`, `lore task start <id>`, `lore task done <id>`, then `lore render`. Never write a task list into a markdown file.
+- `docsi/memory/` — durable findings from past sessions (index: `docsi/memory/INDEX.md`). Project memory lives here, never in a global agent memory directory.
+
+## Working rules specific to this repo
+
+- **`docsi/`, this `CLAUDE.md` and `MISSION.md` live in the private repo, managed by repolink.** Edit through the symlinks; after a fresh clone run `repolink` with no arguments to restore them.
+- **Docs under `docsi/` are read in filemark**: invoke the `/filemark` skill before authoring. This file, `MISSION.md` and `README.md` stay plain markdown.
+- **Never hard-wrap markdown.** Every prose paragraph, bullet and table cell is one physical line.
+- **Code follows {{STACK_SKILL}}**, except where the core's dependency rule forbids an import.
+- **Build primitives any project could import.** No project-specific decisions in the core or adapters; no hidden state.
+- {{DOMAIN_SECURITY_BAR: the one-paragraph bar this kind of code is held to, and why.}}

@@ -1,0 +1,50 @@
+# Mission
+
+**{{MISSION_SENTENCE, bold, one sentence.}}**
+
+Owner: {{OWNER_NAME}} (`{{OWNER_HANDLE}}`). Started {{TODAY}}. Current phase: exploration and design, no code.
+
+## The problem
+
+{{What every app in this stack rebuilds by hand today, as a short numbered list of the layers it re-glues.}}
+
+{{Which ecosystems solved it once, with links (verified against LANDSCAPE.md), and what this stack has instead: good parts, no whole.}}
+
+{{After Phase 2: the evidence the gap is real (products that each built their own layer) and what no library offers today.}}
+
+## Lessons we start from
+
+{{After Phase 2: dead predecessors and why they died, the conceptual split real apps need, the traps the anti-pattern table names. Each one a bullet with its consequence for us.}}
+
+## Who it is for
+
+- {{The developers and app archetypes.}}
+- {{The owner's own apps it must replace first: the first proof.}}
+
+## Principles
+
+1. **Batteries included, nothing forced.**
+2. **Small core, honest capabilities.**
+3. **Swap the backend, keep the code.**
+4. {{Layer separation principle.}}
+5. **Extensible like {{TEMPLATE_PROJECT}}.**
+6. **Framework-agnostic.**
+7. **Safe by default.**
+8. **Proven, not claimed.** Every declared capability is checked by one shared conformance suite; a feature without a test does not ship.
+
+## Scope
+
+**In scope** ({{N}} features in {{M}} categories are ranked P0 to P4 in `docsi/research/FEATURES.md`): {{list}}.
+
+**Out of scope** (until decided otherwise): {{list, each with the reason}}.
+
+## What done looks like
+
+- {{The end-to-end app story that needs only configuration.}}
+- {{The owner's existing modules replaced with no loss of features.}}
+- {{Conformance suite and dependency guard.}}
+- {{Docs, examples per archetype, open-source ready.}}
+
+## How the work is tracked
+
+Tasks, missions and open decisions live in lore (`lore task list`); decisions with their reasons go in `docsi/decisions/`; research and design docs in `docsi/`. This file changes only when the mission itself does.
